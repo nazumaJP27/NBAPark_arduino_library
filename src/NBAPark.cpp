@@ -60,10 +60,16 @@ unsigned long Timer::get_elapsed_time() const
 // Constructors
 MVPHoopsLayout::MVPHoopsLayout() : m_time(0), m_num_hoops(DEFAULT_NUM_MVP_HOOPS)
 {
-    for (int i = 0; i < m_num_hoops, ++i)
+    for (int i = 0; i < m_num_hoops; ++i)
     {
         m_valid_hoops[i] = true;
     }
 }
 
-MVPHoopsLayout::MVPHoopsLayout(int in_time, bool in_hoops[]) : time(in_time), hoop0(in_hoop0), hoop1(in_hoop1), hoop2(in_hoop2) {}
+MVPHoopsLayout::MVPHoopsLayout(int in_time, const bool *in_valid_hoops) : m_time(in_time), m_num_hoops(DEFAULT_NUM_MVP_HOOPS)
+{
+    for (int i = 0; i < m_num_hoops; ++i) // Checks for nullptr
+    {
+        in_valid_hoops[i] ? (m_valid_hoops[i] = in_valid_hoops[i]) : (m_valid_hoops[i] = false);
+    }
+}

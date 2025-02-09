@@ -55,10 +55,10 @@ struct MVPHoopsLayout
 {
     int m_time;
     uint8_t m_num_hoops;
-    bool m_valid_hoops[num_hoops];
+    bool m_valid_hoops[DEFAULT_NUM_MVP_HOOPS];
 
-    MVPHoopsLayout() : time(0), hoop0(1), hoop1(1), hoop2(1);
-    MVPHoopsLayout(int in_time, uint8_t in_num_hoops, bool in_hoop0, bool in_hoop1, bool in_hoop2) : time(in_time), hoop0(in_hoop0), hoop1(in_hoop1), hoop2(in_hoop2) {}
+    MVPHoopsLayout();
+    MVPHoopsLayout(int in_time, const bool* in_valid_hoops);
 };
 
 
