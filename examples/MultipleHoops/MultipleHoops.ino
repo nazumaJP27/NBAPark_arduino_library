@@ -10,12 +10,11 @@ BasketSensor hoops[DEFAULT_NUM_MVP_HOOPS] = {
     BasketSensor(trig_pins[2], echo_pins[2]),
 };
 
-bool valid_layouts[5][DEFAULT_NUM_MVP_HOOPS] = {
-    {true, true, true},
-    {false, true, true},
-    {true, false, true},
-    {true, true, false},
-    {false, false, false},
+bool valid_layouts[4][DEFAULT_NUM_MVP_HOOPS] = {
+    {1, 1, 1},
+    {0, 1, 1},
+    {1, 0, 1},
+    {1, 1, 0},
 };
 
 MVPHoopsLayout layouts[5] = {
@@ -23,8 +22,12 @@ MVPHoopsLayout layouts[5] = {
     MVPHoopsLayout(10, valid_layouts[1]),
     MVPHoopsLayout(20, valid_layouts[2]),
     MVPHoopsLayout(30, valid_layouts[3]),
-    MVPHoopsLayout(40, valid_layouts[4]),
+    MVPHoopsLayout(40, nullptr),
 };
+
+MVPHoopsLayouts::LayoutId id_arr[] = {1, 2, 3};
+
+MVPHoopsLayouts test(id_arr, 3);
 
 uint8_t curr;
 uint8_t next;
@@ -53,8 +56,9 @@ void loop()
 
     if (now > layouts[next].m_time)
     {
-        if (++curr > 4) setup();
-        current_valid_layout = layouts[next++].m_valid_hoops;
+        ++curr;
+        current_valid_layout = layouts[next].m_valid_hoops;
+        if (++next > 4) setup();
     }
 
     if (current_valid_layout != nullptr) {

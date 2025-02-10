@@ -61,6 +61,55 @@ struct MVPHoopsLayout
     MVPHoopsLayout(int in_time, const bool* in_valid_hoops);
 };
 
+class MVPHoopsLayouts
+{
+public:
+    enum LayoutId 
+    {
+        LAYOUT_STOP, // sentinel value
+        LAYOUT_1,
+        LAYOUT_2,
+        LAYOUT_3,
+        LAYOUT_4,
+        LAYOUT_5,
+        LAYOUT_6,
+        LAYOUT_7,
+        LAYOUT_8,
+        NUM_LAYOUTS
+    };
+
+    struct Layout
+    {
+        // Member variables
+        int time;
+        uint8_t num_hoops;
+        bool valid_hoops[DEFAULT_NUM_MVP_HOOPS];
+        // All the possible layouts for three hoops attached to the wall
+        static const bool possible_layouts[NUM_LAYOUTS][3];
+
+
+        // Constructors
+        Layout();
+        Layout(int in_time, const bool* in_valid_hoops);
+        Layout(int in_time, bool in_hoop0, bool in_hoop1, bool in_hoop2);
+        Layout(int in_time, LayoutId in_layout_id);
+    };
+
+private:
+    // Member variables
+    uint8_t m_curr;
+    uint8_t m_next;
+    const LayoutId* m_layouts_arr; // Pointer to an array 
+
+public:
+    // Constructors
+    MVPHoopsLayouts();
+    MVPHoopsLayouts(const LayoutId* in_layouts_arr, const uint8_t in_size);
+
+private:
+    // Method to iterate over layouts and ensure correct boundary checking
+    bool validate_layouts(const LayoutId* in_layouts_arr, const uint8_t in_size);
+};
 
 
 #endif // NBAPARK_H
