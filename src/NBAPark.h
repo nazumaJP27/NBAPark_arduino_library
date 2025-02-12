@@ -10,7 +10,7 @@
 
 #define SOUND_SPEED 0.0343f         // Speed of sound in centimeters per microsecond
 #define BALL_DETECTION_THRESHOLD 15 // Value in centimeters
-#define DEFAULT_NUM_MVP_HOOPS 3
+#define NUM_MVP_HOOPS 3
 
 class BasketSensor
 {
@@ -51,21 +51,11 @@ public:
     unsigned long get_elapsed_time() const;
 };
 
-struct MVPHoopsLayout
-{
-    int m_time;
-    uint8_t m_num_hoops;
-    bool m_valid_hoops[DEFAULT_NUM_MVP_HOOPS];
-
-    MVPHoopsLayout();
-    MVPHoopsLayout(int in_time, const bool* in_valid_hoops);
-};
-
 struct Layout
 {
     enum LayoutId 
     {
-        LAYOUT_STOP, // sentinel value
+        LAYOUT_0,
         LAYOUT_1,
         LAYOUT_2,
         LAYOUT_3,
@@ -73,12 +63,12 @@ struct Layout
         LAYOUT_5,
         LAYOUT_6,
         LAYOUT_7,
-        LAYOUT_8,
+        LAYOUT_STOP, // sentinel value
         NUM_LAYOUTS
     };
 
     // All the possible layouts for three hoops attached to the wall
-    static const bool POSSIBLE_LAYOUTS[NUM_LAYOUTS][3];
+    static const bool POSSIBLE_LAYOUTS[NUM_LAYOUTS][NUM_MVP_HOOPS];
 
     // Member variables
     int time;
@@ -87,27 +77,43 @@ struct Layout
     // Constructors
     Layout();
     Layout(int in_time, LayoutId in_layout_id);
+
+    // Accessor
+    const bool* get_bool_layout() const { return POSSIBLE_LAYOUTS[id]; }
 };
 
 // Class needs to point to an array of Layout objects with the last layout being a LAYOUT_STOP
 class MVPHoopsLayouts
 {
     // Member variables
-    uint8_t m_curr;
-    uint8_t m_next;
     const Layout* m_layouts_arr;
-    const LayoutId* m_layouts_arr; // Pointer to an array 
+    uint8_t m_curr;                    // Index for the current Layout obj  
+    uint8_t m_next;                    // Index for the next Layout obj
+    bool m_curr_layout[NUM_MVP_HOOPS]; // Copy of the current layout boolean array (Layout::POSSIBLE_LAYOUTS)
 
 public:
+    enum MVPState
+    {
+        MVP_GAME_OVER,
+        MVP_RUNNING,
+        MVP_HOLD
+    };
+
     // Constructors
     MVPHoopsLayouts();
     MVPHoopsLayouts(const Layout* in_layouts_arr, const uint8_t in_size);
-    MVPHoopsLayouts(const LayoutId* in_layouts_arr, const uint8_t in_size);
+
+    // Methods
+    MVPState update(int in_time);
+    void reset();
+
+    // Accessors
+    const bool* get_curr_layout() const { return m_curr_layout; }
 
 private:
     // Method to iterate over layouts and ensure correct boundary checking
-    bool validate_layouts(const Layout* in_layouts_arr, const uint8_t in_size);
+    bool validate_layouts_arr(const Layout* in_layouts_arr, const uint8_t in_size);
+    void copy_layout(const Layout* in_layout);
 };
-
 
 #endif // NBAPARK_H

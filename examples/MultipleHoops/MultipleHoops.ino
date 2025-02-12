@@ -3,54 +3,43 @@
 int trig_pins[] = {2, 4, 6};
 int echo_pins[] = {3, 5, 7};
 
-// DEFAULT_NUM_MVP_HOOPS == 3
-BasketSensor hoops[DEFAULT_NUM_MVP_HOOPS] = {
+// NUM_MVP_HOOPS == 3
+BasketSensor hoops[NUM_MVP_HOOPS] = {
     BasketSensor(trig_pins[0], echo_pins[0]),
     BasketSensor(trig_pins[1], echo_pins[1]),
     BasketSensor(trig_pins[2], echo_pins[2]),
 };
 
-bool valid_layouts[4][DEFAULT_NUM_MVP_HOOPS] = {
-    {1, 1, 1},
-    {0, 1, 1},
-    {1, 0, 1},
-    {1, 1, 0},
-};
-
-MVPHoopsLayout layouts[5] = {
-    MVPHoopsLayout(0, valid_layouts[0]),
-    MVPHoopsLayout(10, valid_layouts[1]),
-    MVPHoopsLayout(20, valid_layouts[2]),
-    MVPHoopsLayout(30, valid_layouts[3]),
-    MVPHoopsLayout(40, nullptr),
-};
-
 const Layout test_layouts[] = {
-    Layout test_layout0(0, LAYOUT_2);
-    Layout test_layout1(10, LAYOUT_8);
-    Layout test_layout1(20, LAYOUT_7);
-    Layout test_layout1(30, LAYOUT_6);
-    Layout test_layout1(40, LAYOUT_STOP);
-}
+    Layout(0, Layout::LAYOUT_0),
+    Layout(10, Layout::LAYOUT_1),
+    Layout(20, Layout::LAYOUT_2),
+    Layout(30, Layout::LAYOUT_3),
+    Layout(40, Layout::LAYOUT_4),
+    Layout(50, Layout::LAYOUT_5),
+    Layout(60, Layout::LAYOUT_6),
+    Layout(70, Layout::LAYOUT_7),
+    Layout(80, Layout::LAYOUT_STOP),
+};
 
-MVPHoopsLayouts test(test_layouts, sizeof(test_layouts) / sizeof(test_layouts[0]));
-
-uint8_t curr;
-uint8_t next;
-bool* current_valid_layout = layouts[curr].m_valid_hoops;
+MVPHoopsLayouts test_mvp(test_layouts, sizeof(test_layouts) / sizeof(test_layouts[0]));
+bool* current_mvp_layout = test_mvp.get_curr_layout();
 
 Timer timer;
 int now;
+
+int ball_count;
 
 void setup()
 {
     Serial.begin(115200);
 
-    curr = 0;
-    next = 1;
-
     timer.reset_timer();
     now = timer.get_elapsed_time();
+
+    test_mvp.reset();
+
+    ball_count = 0;
 }
 
 void loop()
@@ -60,23 +49,29 @@ void loop()
     Serial.print(now);
     Serial.print(" seconds | Valid hoops: ");
 
-    if (now > layouts[next].m_time)
+    if (test_mvp.update(now) == MVPHoopsLayouts::MVPState::MVP_GAME_OVER)
     {
-        ++curr;
-        current_valid_layout = layouts[next].m_valid_hoops;
-        if (++next > 4) setup();
+        Serial.print("GAME OVER\n");
+        delay(1500);
+        setup();
     }
 
-    if (current_valid_layout != nullptr) {
-        // Print valid hoop states
-        Serial.print(current_valid_layout[0]);
-        Serial.print(", ");
-        Serial.print(current_valid_layout[1]);
-        Serial.print(", ");
-        Serial.println(current_valid_layout[2]);
-    } else {
-        Serial.println("No valid layout.");
+    for (int i = 0; i < NUM_MVP_HOOPS; ++i)
+    {
+        if (current_mvp_layout[i] && hoops[i].ball_detected())
+        {
+            Serial.print("BALL DETECTED! ball count: ");
+            ball_count++;
+            Serial.println(ball_count);
+            delay(1500);
+        }
     }
+
+    Serial.print(current_mvp_layout[0]);
+    Serial.print(", ");
+    Serial.print(current_mvp_layout[1]);
+    Serial.print(", ");
+    Serial.println(current_mvp_layout[2]);
 
     delay(10);
 }
