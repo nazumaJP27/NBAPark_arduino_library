@@ -61,9 +61,8 @@ struct MVPHoopsLayout
     MVPHoopsLayout(int in_time, const bool* in_valid_hoops);
 };
 
-class MVPHoopsLayouts
+struct Layout
 {
-public:
     enum LayoutId 
     {
         LAYOUT_STOP, // sentinel value
@@ -78,37 +77,36 @@ public:
         NUM_LAYOUTS
     };
 
-    struct Layout
-    {
-        // Member variables
-        int time;
-        uint8_t num_hoops;
-        bool valid_hoops[DEFAULT_NUM_MVP_HOOPS];
-        // All the possible layouts for three hoops attached to the wall
-        static const bool possible_layouts[NUM_LAYOUTS][3];
+    // All the possible layouts for three hoops attached to the wall
+    static const bool POSSIBLE_LAYOUTS[NUM_LAYOUTS][3];
 
+    // Member variables
+    int time;
+    LayoutId id;
 
-        // Constructors
-        Layout();
-        Layout(int in_time, const bool* in_valid_hoops);
-        Layout(int in_time, bool in_hoop0, bool in_hoop1, bool in_hoop2);
-        Layout(int in_time, LayoutId in_layout_id);
-    };
+    // Constructors
+    Layout();
+    Layout(int in_time, LayoutId in_layout_id);
+};
 
-private:
+// Class needs to point to an array of Layout objects with the last layout being a LAYOUT_STOP
+class MVPHoopsLayouts
+{
     // Member variables
     uint8_t m_curr;
     uint8_t m_next;
+    const Layout* m_layouts_arr;
     const LayoutId* m_layouts_arr; // Pointer to an array 
 
 public:
     // Constructors
     MVPHoopsLayouts();
+    MVPHoopsLayouts(const Layout* in_layouts_arr, const uint8_t in_size);
     MVPHoopsLayouts(const LayoutId* in_layouts_arr, const uint8_t in_size);
 
 private:
     // Method to iterate over layouts and ensure correct boundary checking
-    bool validate_layouts(const LayoutId* in_layouts_arr, const uint8_t in_size);
+    bool validate_layouts(const Layout* in_layouts_arr, const uint8_t in_size);
 };
 
 

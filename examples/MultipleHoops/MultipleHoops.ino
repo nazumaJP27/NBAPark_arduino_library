@@ -25,9 +25,15 @@ MVPHoopsLayout layouts[5] = {
     MVPHoopsLayout(40, nullptr),
 };
 
-MVPHoopsLayouts::LayoutId id_arr[] = {1, 2, 3};
+const Layout test_layouts[] = {
+    Layout test_layout0(0, LAYOUT_2);
+    Layout test_layout1(10, LAYOUT_8);
+    Layout test_layout1(20, LAYOUT_7);
+    Layout test_layout1(30, LAYOUT_6);
+    Layout test_layout1(40, LAYOUT_STOP);
+}
 
-MVPHoopsLayouts test(id_arr, 3);
+MVPHoopsLayouts test(test_layouts, sizeof(test_layouts) / sizeof(test_layouts[0]));
 
 uint8_t curr;
 uint8_t next;
@@ -44,7 +50,7 @@ void setup()
     next = 1;
 
     timer.reset_timer();
-    int now = timer.get_elapsed_time();
+    now = timer.get_elapsed_time();
 }
 
 void loop()
