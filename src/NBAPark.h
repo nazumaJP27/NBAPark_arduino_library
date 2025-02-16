@@ -4,10 +4,7 @@
 #include <Arduino.h>
 
 // Constants
-#ifndef ULONG_MAX
-#define ULONG_MAX 4294967295UL
-#endif
-
+#define ULONG_MAX 4294967295UL      // Max value for an usigned long type (used to calculate the offset in Timer)
 #define SOUND_SPEED 0.0343f         // Speed of sound in centimeters per microsecond
 #define BALL_DETECTION_THRESHOLD 15 // Value in centimeters
 #define NUM_MVP_HOOPS 3
@@ -29,7 +26,6 @@ public:
     // Methods
     float get_ultrasonic_distance();
     bool ball_detected();
-    void send_OSC_message();
 };
 
 

@@ -23,7 +23,7 @@ const Layout test_layouts[] = {
 };
 
 MVPHoopsLayouts test_mvp(test_layouts, sizeof(test_layouts) / sizeof(test_layouts[0]));
-bool* current_mvp_layout = test_mvp.get_curr_layout();
+const bool* current_mvp_layout = test_mvp.get_curr_layout();
 
 Timer timer;
 int now;
@@ -49,6 +49,7 @@ void loop()
     Serial.print(now);
     Serial.print(" seconds | Valid hoops: ");
 
+    // Update layouts state and check for the end of the game
     if (test_mvp.update(now) == MVPHoopsLayouts::MVPState::MVP_GAME_OVER)
     {
         Serial.print("GAME OVER\n");
@@ -61,8 +62,7 @@ void loop()
         if (current_mvp_layout[i] && hoops[i].ball_detected())
         {
             Serial.print("BALL DETECTED! ball count: ");
-            ball_count++;
-            Serial.println(ball_count);
+            Serial.println(++ball_count);
             delay(1500);
         }
     }
