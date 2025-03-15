@@ -150,3 +150,174 @@ void MVPHoopsLayouts::reset()
     m_next = 1;
     copy_layout(&m_layouts_arr[m_curr]);
 }
+// MVPHoopsLayouts (end)
+
+
+// OSCPark (begin)
+// Constructors
+// Default
+OSCPark::OSCPark() :  m_addr{'\0'}, m_type_tags{'\0'}, m_addr_len(0), m_type_len(0), m_values_len(0) {}
+
+OSCPark::OSCPark(const uint8_t* in_buffer)
+{
+    init(in_buffer);
+}
+
+void OSCPark::init(const uint8_t* in_buffer)
+{
+    /*Serial.print("Raw bytes: ");
+    for (int i = 0; i < 65; ++i)
+    {  // Adjust size to print enough bytes
+        Serial.print(in_buffer[i], HEX);
+        Serial.print(" ");
+    }*/
+    const uint8_t* ptr = in_buffer;
+
+    // Extract address pattern (null-terminated, 4-byte aligned)
+    m_addr_len = strnlen((const char*)ptr, sizeof(m_addr));
+    memcpy(m_addr, ptr, m_addr_len);
+    m_addr[m_addr_len] = '\0';
+    ptr += (m_addr_len + 1 + 3) & ~3;  // Move to 4-byte boundary (m_addr_len + 1 null char)
+
+    // Extract type tag string (starts with ',')
+    m_type_len = strnlen((const char*)ptr, sizeof(m_type_tags));
+    memcpy(m_type_tags, ptr + 1, m_type_len); // Skip the byte containing ',' by copying from the ptr + 1
+    m_type_tags[m_type_len] = '\0';
+    ptr += (m_type_len + 1 + 3) & ~3;
+
+    // Extract value (currently only support messages with one type_tag)
+    m_value.setup(m_type_tags[0], ptr);
+}
+
+void OSCPark::Value::setup(const char in_type_tag, const uint8_t* in_ptr)
+{
+    uint8_t str_size = 0;
+    char* str_buffer = nullptr;
+
+    switch (in_type_tag)
+    {
+        case 'i':
+            Serial.println("INT");
+            type_tag = 'i';
+            memcpy(&data.i_value, in_ptr, sizeof(data.i_value));
+            data.i_value = __builtin_bswap32(data.i_value);
+            break;
+        case 'f':
+            Serial.println("FLOAT");
+            type_tag = 'f';
+            memcpy(&data.f_value, in_ptr, sizeof(data.f_value));
+            uint32_t temp = __builtin_bswap32(*reinterpret_cast<uint32_t*>(&data.f_value));
+            data.f_value = *reinterpret_cast<float*>(&temp);
+            break;
+        case 's':
+            Serial.println("STRING");
+            type_tag = 's';
+            str_size = strnlen((const char*)in_ptr, 255);
+            str_buffer = new char[str_size + 1];
+            memcpy(str_buffer, in_ptr, str_size);
+            str_buffer[str_size] = '\0';
+            data.s_value = str_buffer;
+            break;
+        default:
+            Serial.println("No valid type flag parsed...");
+            break;
+    }
+}
+
+void OSCPark::clear()
+{
+    m_addr[0] = '\0';
+    m_type_tags[0] = '\0';
+    m_addr_len = 0;
+    m_type_len = 0;
+    m_values_len = 0;
+
+    switch (m_value.type_tag)
+    {
+        case 'i':
+            m_value.data.i_value = 0;
+            break;
+        case 'f':
+            m_value.data.f_value = 0;
+            break;
+        case 's':
+            delete[] m_value.data.s_value;
+            m_value.data.s_value = nullptr;
+            break;
+    }
+    m_value.type_tag = '\0';
+}
+
+// Prints to the Serial Monitor the characters representation of the OSC message in the obj
+void OSCPark::print() const
+{
+    if (m_addr_len <= 0)
+    {
+        Serial.println("OSCPark obj is empty...");
+    }
+    else
+    {
+        char osc_message_buffer[255];
+
+        // Currently only support messages with one type_tag
+        Serial.print("The type tag is: ");
+        Serial.println(m_type_tags[0]);
+        switch (m_type_tags[0])
+        {
+            case 'i':
+                snprintf((char*)osc_message_buffer, sizeof(osc_message_buffer), "%s,%s(%ld)", m_addr, m_type_tags, m_value.data.i_value);
+                break;
+            case 'f':
+                // Convert float to string with fixed precision
+                char float_str[7];  // Allocate a buffer for the string representation of the float (4 decimals + '.' + the integer part + '\0')
+                dtostrf(m_value.data.f_value, 1, 4, float_str);  // dtostrf converts float to string with 4 decimals
+                snprintf((char*)osc_message_buffer, sizeof(osc_message_buffer), "%s,%s(%s)", m_addr, m_type_tags, float_str);
+                break;
+            case 's':
+                snprintf((char*)osc_message_buffer, sizeof(osc_message_buffer), "%s,%s(%s)", m_addr, m_type_tags, m_value.data.s_value);
+                break;
+            default:
+                snprintf((char*)osc_message_buffer, sizeof(osc_message_buffer), "%s,%s(error parsing the value)", m_addr, m_type_tags);
+                break;
+        }
+        // Parentheses added after the type tags for clarity
+        Serial.println(osc_message_buffer);
+    }
+}
+
+// Prints to the Serial Monitor the info of each member var of the obj
+void OSCPark::info() const
+{
+    char buffer[255];
+
+    snprintf((char*)buffer, sizeof(buffer), "Address: %s", m_addr);
+    Serial.println(buffer);
+
+    snprintf((char*)buffer, sizeof(buffer), "Type tags: %s", m_type_tags);
+    Serial.println(buffer);
+
+    // Currently only support messages with one type_tag
+    switch (m_type_tags[0])
+    {
+        case 'i':
+            snprintf((char*)buffer, sizeof(buffer), "m_value.data.i_value: %ld", m_value.data.i_value);
+            break;
+        case 'f':
+            // Convert float to string with fixed precision
+            char float_str[7];  // Allocate a buffer for the string representation of the float (4 decimals + '.' + the integer part + '\0')
+            dtostrf(m_value.data.f_value, 1, 4, float_str);  // dtostrf converts float to string with 6 decimals
+            snprintf((char*)buffer, sizeof(buffer), "m_value.data.f_value: %s", float_str);
+            break;
+        case 's':
+            snprintf((char*)buffer, sizeof(buffer), "m_value.data.s_value: %s", m_value.data.s_value);
+            break;
+    }
+    Serial.println(buffer);
+
+    snprintf((char*)buffer, sizeof(buffer), "m_addr_len: %d", m_addr_len);
+    Serial.println(buffer);
+
+    snprintf((char*)buffer, sizeof(buffer), "m_type_len: %d", m_type_len);
+    Serial.println(buffer);
+}
+// OSCPark (end)

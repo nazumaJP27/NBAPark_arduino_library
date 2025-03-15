@@ -9,6 +9,7 @@
 #define BALL_DETECTION_THRESHOLD 15 // Value in centimeters
 #define NUM_MVP_HOOPS 3
 
+
 class BasketSensor
 {
     // Pins used by the Ultrasonic Sensor
@@ -46,6 +47,7 @@ public:
     void reset_timer();
     unsigned long get_elapsed_time() const;
 };
+
 
 struct Layout
 {
@@ -110,6 +112,58 @@ private:
     // Method to iterate over layouts and ensure correct boundary checking
     bool validate_layouts_arr(const Layout* in_layouts_arr, const uint8_t in_size);
     void copy_layout(const Layout* in_layout);
+};
+
+
+class OSCPark
+{
+    // Struct used to store the value data from OSCMessages
+    struct Value
+    {
+        char type_tag;
+        union Data
+        {
+            int32_t i_value;
+            float f_value;
+            char* s_value;
+        } data;
+
+        void setup(const char in_type_tag, const uint8_t* in_ptr);
+    };
+
+    char m_addr[64];
+    char m_type_tags[8];
+    Value m_value;
+
+    uint8_t m_addr_len;
+    uint8_t m_type_len;
+    uint8_t m_values_len;
+
+public:
+    // Constructors
+    OSCPark();
+    OSCPark(const uint8_t* in_buffer);
+
+    // Destructor
+    ~OSCPark() { clear(); }
+
+    // Methods
+    void init(const uint8_t* in_buffer);
+    void clear();
+
+    // Serial Monitor debug
+    void print() const;
+    void info() const;
+
+    // Accessors
+    const char* get_addr() const { return m_addr; }
+    const char* get_type() const { return m_type_tags; }
+    int32_t get_int() const { return m_value.data.i_value; }
+    float get_float() const { return m_value.data.f_value; }
+    char* get_str() const { return m_value.data.s_value; }
+    uint8_t get_addr_len() const { return m_addr_len; }
+    uint8_t get_type_len() const { return m_type_len; }
+    uint8_t get_values_len() const { return m_values_len; }
 };
 
 #endif // NBAPARK_H
