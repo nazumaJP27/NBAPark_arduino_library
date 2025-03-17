@@ -1,3 +1,11 @@
+/*
+ * NBA Park Arduino Library
+ * Description: Example program to test BasketSensor, Layout, and MVPHoopsLayouts objects working to demonstrate dynamic sensor check
+ * Author: José Paulo Seibt Neto
+ * Created: Mar - 2025
+ * Last Modified: Mar - 2025
+*/
+
 #include <NBAPark.h>
 
 int trig_pins[] = {2, 4, 6};
@@ -22,6 +30,7 @@ const Layout test_layouts[] = {
     Layout(80, Layout::LAYOUT_STOP),
 };
 
+// Globals
 MVPHoopsLayouts test_mvp(test_layouts, sizeof(test_layouts) / sizeof(test_layouts[0]));
 const bool* current_mvp_layout = test_mvp.get_curr_layout();
 

@@ -1,3 +1,11 @@
+/*
+ * NBA Park Arduino Library
+ * Description: Example program that will parse UDP packets and instantiate OSCPark obj
+ * Author: José Paulo Seibt Neto
+ * Created: Mar - 2025
+ * Last Modified: Mar - 2025
+*/
+
 #include <NBAPark.h>
 #include <Ethernet.h>
 #include <EthernetUDP.h>

@@ -1,3 +1,11 @@
+/*
+ * NBA Park Arduino Library
+ * Description: Example program that sends a OSC message to Resolume Arena to change the column of a clip when a ball is detected by the BasketSensor obj
+ * Author: José Paulo Seibt Neto
+ * Created: Mar - 2025
+ * Last Modified: Mar - 2025
+*/
+
 #include <NBAPark.h>
 #include <OSCMessage.h>
 #include <Ethernet.h>
@@ -19,8 +27,7 @@ uint8_t osc_message_buffer[255];
 
 // Prototypes
 void send_osc_resolume(uint8_t in_ball_count);
-bool mvp_game_start(const uint8_t in_buffer);.
-
+bool mvp_game_start(const uint8_t in_buffer);
 
 void setup()
 {

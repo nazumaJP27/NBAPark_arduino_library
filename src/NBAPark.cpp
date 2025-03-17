@@ -1,3 +1,11 @@
+/*
+ * NBA Park Arduino Library
+ * Description: Definitions of the classes and structs from NBAPark.h
+ * Author: José Paulo Seibt Neto
+ * Created: Fev - 2025
+ * Last Modified: Mar - 2025
+*/
+
 #include "NBAPark.h"
 
 // BasketSensor Class (begin)
@@ -39,10 +47,11 @@ Timer::Timer() : m_start_time(millis()), m_offset_time(ULONG_MAX)
     m_offset_time = ULONG_MAX - m_start_time + 1;
 }
 
-void Timer::reset_timer()
+int Timer::reset_timer()
 {
     m_start_time = millis();
     m_offset_time = ULONG_MAX - m_start_time + 1;
+    return 0;
 }
 
 unsigned long Timer::get_elapsed_time() const
@@ -76,16 +85,38 @@ const bool Layout::POSSIBLE_LAYOUTS[LayoutId::NUM_LAYOUTS][NUM_MVP_HOOPS] = {
 
 // MVPHoopsLayouts (begin)
 // Constructors
+MVPHoopsLayouts::MVPHoopsLayouts() : m_curr(0), m_next(1)
+{
+    m_layouts_arr = nullptr;
+    copy_layout(&Layout()); // Default Layout
+}
+
 MVPHoopsLayouts::MVPHoopsLayouts(const Layout* in_layouts_arr, const uint8_t in_size) : m_curr(0), m_next(1)
 {
-    if (!validate_layouts_arr(in_layouts_arr, in_size))
+    init(in_layouts_arr, in_size);
+
+    /*if (!validate_layouts_arr(in_layouts_arr, in_size))
     {
         // Invalid - raise error
     }
     m_layouts_arr = in_layouts_arr;
 
     // Copy the bool array from the Layout obj id
+    copy_layout(&m_layouts_arr[m_curr]);*/
+}
+
+bool MVPHoopsLayouts::init(const Layout* in_layouts_arr, const uint8_t in_size)
+{
+    if (!validate_layouts_arr(in_layouts_arr, in_size))
+    {
+        // Invalid - raise error
+        return false;
+    }
+    m_layouts_arr = in_layouts_arr;
+
+    // Copy the bool array from the Layout obj id
     copy_layout(&m_layouts_arr[m_curr]);
+    return true;
 }
 
 // Iterate over the array to validate its layouts and check its size argument
@@ -105,7 +136,7 @@ bool MVPHoopsLayouts::validate_layouts_arr(const Layout* in_layouts_arr, const u
     uint8_t i = 0;
     Layout curr_layout = in_layouts_arr[0];
 
-    // Iterate ultil the second to last element
+    // Iterate until the second to last element
     for(; i < in_size - 1 && curr_layout.id != Layout::LAYOUT_STOP; curr_layout = in_layouts_arr[++i])
     {
         if (curr_layout.id > Layout::NUM_LAYOUTS || curr_layout.id < 0) return false;
@@ -126,14 +157,17 @@ void MVPHoopsLayouts::copy_layout(const Layout* in_layout)
 // Han
 MVPHoopsLayouts::MVPState MVPHoopsLayouts::update(const int in_time)
 {
-    if (in_time > m_layouts_arr[m_next].time)
+    if (!m_layouts_arr)
+    {
+        return MVP_GAME_OVER;
+    }
+    else if (in_time >= m_layouts_arr[m_next].time)
     {
         if (m_layouts_arr[++m_curr].id == Layout::LAYOUT_STOP)
         {
             // End of the transitions
             return MVP_GAME_OVER;
         }
-
         copy_layout(&m_layouts_arr[m_next++]);
     }
     else if (in_time < m_layouts_arr[m_curr].time)
@@ -148,7 +182,8 @@ void MVPHoopsLayouts::reset()
 {
     m_curr = 0;
     m_next = 1;
-    copy_layout(&m_layouts_arr[m_curr]);
+    if (m_layouts_arr)
+        copy_layout(&m_layouts_arr[m_curr]);
 }
 // MVPHoopsLayouts (end)
 
@@ -197,20 +232,20 @@ void OSCPark::Value::setup(const char in_type_tag, const uint8_t* in_ptr)
     switch (in_type_tag)
     {
         case 'i':
-            Serial.println("INT");
+            //Serial.println("INT");
             type_tag = 'i';
             memcpy(&data.i_value, in_ptr, sizeof(data.i_value));
             data.i_value = __builtin_bswap32(data.i_value);
             break;
         case 'f':
-            Serial.println("FLOAT");
+            //Serial.println("FLOAT");
             type_tag = 'f';
             memcpy(&data.f_value, in_ptr, sizeof(data.f_value));
             uint32_t temp = __builtin_bswap32(*reinterpret_cast<uint32_t*>(&data.f_value));
             data.f_value = *reinterpret_cast<float*>(&temp);
             break;
         case 's':
-            Serial.println("STRING");
+            //Serial.println("STRING");
             type_tag = 's';
             str_size = strnlen((const char*)in_ptr, 255);
             str_buffer = new char[str_size + 1];

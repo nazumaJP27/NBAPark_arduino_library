@@ -1,3 +1,11 @@
+/*
+ * NBA Park Arduino Library
+ * Description: Declarations of classes and structs
+ * Author: José Paulo Seibt Neto
+ * Created: Fev - 2025
+ * Last Modified: Mar - 2025
+*/
+
 #ifndef NBAPARK_H
 #define NBAPARK_H
 
@@ -10,9 +18,10 @@
 #define NUM_MVP_HOOPS 3
 
 
+// Need a HC-SR04 sensor
 class BasketSensor
 {
-    // Pins used by the Ultrasonic Sensor
+    // Pins used by the ultrasonic sensor
     uint8_t m_trig_pin;
     uint8_t m_echo_pin;
 
@@ -44,7 +53,7 @@ public:
     const unsigned long& get_offset_time() const { return m_offset_time; }
 
     // Methods
-    void reset_timer();
+    int reset_timer();
     unsigned long get_elapsed_time() const;
 };
 
@@ -102,6 +111,7 @@ public:
     MVPHoopsLayouts(const Layout* in_layouts_arr, const uint8_t in_size);
 
     // Methods
+    bool init(const Layout* in_layouts_arr, const uint8_t in_size);
     MVPState update(int in_time);
     void reset();
 
