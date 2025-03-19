@@ -167,6 +167,7 @@ public:
 
     // Accessors
     const char* get_addr() const { return m_addr; }
+    const char* get_addr_cmp() { return m_addr; }
     const char* get_type() const { return m_type_tags; }
     int32_t get_int() const { return m_value.data.i_value; }
     float get_float() const { return m_value.data.f_value; }

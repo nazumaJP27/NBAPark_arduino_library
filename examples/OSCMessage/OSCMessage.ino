@@ -21,7 +21,6 @@ IPAddress pc_ip(172, 30, 6, 58);
 int resolume_port = 7001;
 
 EthernetUDP udp;
-//IPAddress mvp4_pc_ip(172, 30, 4, 104) // NPG-MVP004 >NBAPARKDINAMICO/>172.30.4.104
 
 uint8_t osc_message_buffer[255];
 

@@ -2,7 +2,7 @@
  * NBA Park Arduino Library
  * Description: Example program to test BasketSensor object US sensor capabilities
  * Author: José Paulo Seibt Neto
- * Created: Mar - 2025
+ * Created: Fev - 2025
  * Last Modified: Mar - 2025
 */
 
