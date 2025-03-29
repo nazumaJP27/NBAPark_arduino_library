@@ -153,12 +153,15 @@ public:
     // Constructors
     OSCPark();
     OSCPark(const uint8_t* in_buffer);
+    OSCPark(const char* in_address);
 
     // Destructor
     ~OSCPark() { clear(); }
 
     // Methods
     void init(const uint8_t* in_buffer);
+    void init(const char* in_address);
+    void send(Print& in_p);
     void clear();
 
     // Serial Monitor debug
@@ -167,7 +170,7 @@ public:
 
     // Accessors
     const char* get_addr() const { return m_addr; }
-    const char* get_addr_cmp() { return m_addr; }
+    const char* get_addr_cmp() { return m_addr; } // Non-const return to be used in strncmp
     const char* get_type() const { return m_type_tags; }
     int32_t get_int() const { return m_value.data.i_value; }
     float get_float() const { return m_value.data.f_value; }

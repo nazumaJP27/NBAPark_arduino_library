@@ -94,15 +94,6 @@ MVPHoopsLayouts::MVPHoopsLayouts() : m_curr(0), m_next(1)
 MVPHoopsLayouts::MVPHoopsLayouts(const Layout* in_layouts_arr, const uint8_t in_size) : m_curr(0), m_next(1)
 {
     init(in_layouts_arr, in_size);
-
-    /*if (!validate_layouts_arr(in_layouts_arr, in_size))
-    {
-        // Invalid - raise error
-    }
-    m_layouts_arr = in_layouts_arr;
-
-    // Copy the bool array from the Layout obj id
-    copy_layout(&m_layouts_arr[m_curr]);*/
 }
 
 bool MVPHoopsLayouts::init(const Layout* in_layouts_arr, const uint8_t in_size)
@@ -191,11 +182,16 @@ void MVPHoopsLayouts::reset()
 // OSCPark (begin)
 // Constructors
 // Default
-OSCPark::OSCPark() :  m_addr{'\0'}, m_type_tags{'\0'}, m_addr_len(0), m_type_len(0), m_values_len(0) {}
+OSCPark::OSCPark() : m_addr{'\0'}, m_type_tags{'\0'}, m_addr_len(0), m_type_len(0), m_values_len(0) {}
 
 OSCPark::OSCPark(const uint8_t* in_buffer)
 {
     init(in_buffer);
+}
+
+OSCPark::OSCPark(const char* in_address)
+{
+    init(in_address);
 }
 
 void OSCPark::init(const uint8_t* in_buffer)
@@ -216,12 +212,25 @@ void OSCPark::init(const uint8_t* in_buffer)
 
     // Extract type tag string (starts with ',')
     m_type_len = strnlen((const char*)ptr, sizeof(m_type_tags));
-    memcpy(m_type_tags, ptr + 1, m_type_len); // Skip the byte containing ',' by copying from the ptr + 1
+    if (m_type_len > 1)
+    {   // Skip the byte containing ',' by copying from the ptr + 1
+        memcpy(m_type_tags, ptr + 1, m_type_len--); // Decrement m_type_len to store the amount of type tags without the comma
+    }
     m_type_tags[m_type_len] = '\0';
     ptr += (m_type_len + 1 + 3) & ~3;
 
     // Extract value (currently only support messages with one type_tag)
     m_value.setup(m_type_tags[0], ptr);
+}
+
+void OSCPark::init(const char* in_address)
+{
+    memcpy(&m_addr, in_address, sizeof(m_addr));
+    m_type_tags[0] = '\0';
+    m_addr_len = strnlen(m_addr, sizeof(m_addr));
+    m_type_len = 0;
+    m_values_len = 0;
+    m_value.type_tag = '\0';
 }
 
 void OSCPark::Value::setup(const char in_type_tag, const uint8_t* in_ptr)
@@ -255,6 +264,66 @@ void OSCPark::Value::setup(const char in_type_tag, const uint8_t* in_ptr)
             break;
         default:
             Serial.println("No valid type flag parsed...");
+            break;
+    }
+}
+
+void OSCPark::send(Print &in_p)
+{
+    Serial.println("SENDING");
+    uint8_t padding_len;
+    uint8_t total_len;
+
+    // Write address to the packet
+    in_p.write(reinterpret_cast<uint8_t*>(m_addr), m_addr_len);
+    in_p.write('\0'); // Adding null terminator
+    // Add padding if neccessary
+    total_len = m_addr_len + 1; // Including the null terminator
+    padding_len = (4 - (total_len % 4)) % 4;
+    while (padding_len--)
+    {
+       in_p.write('\0');
+    }
+
+    // Stop here if no type tag in message
+    if (m_values_len < 1) return;
+
+    // Write type tag
+    in_p.write(static_cast<uint8_t>(','));
+    in_p.write((uint8_t) m_type_tags[0]);
+    in_p.write('\0'); // Adding null terminator
+    // Add padding if neccessary
+    total_len = m_type_len + 2; // +1 for the comma and +1 for the null terminator
+    padding_len = (4 - (total_len % 4)) % 4;
+    while (padding_len--)
+    {
+        in_p.write('\0');
+    }
+
+    uint32_t temp;
+    switch (m_type_tags[0])
+    {
+        case 'i':
+            temp = __builtin_bswap32(m_value.data.i_value);
+            in_p.write(reinterpret_cast<uint8_t*>(&temp), sizeof(uint32_t));
+            break;
+        case 'f':
+            temp = *reinterpret_cast<uint32_t*>(&m_value.data.f_value);
+            temp = __builtin_bswap32(temp);
+            in_p.write((uint8_t*) &temp, sizeof(uint32_t));
+            break;
+        case 's':
+            in_p.write(reinterpret_cast<uint8_t*>(m_value.data.s_value), 255); // Max length of 255
+            in_p.write('\0');
+            total_len = (strnlen(m_value.data.s_value, 255)) + 1;
+            padding_len = (4 - (total_len % 4)) % 4;
+            while (padding_len--)
+            {
+                in_p.write('\0');
+            }
+            break;
+        default:
+            Serial.println("Not a supported type...");
             break;
     }
 }
@@ -295,27 +364,32 @@ void OSCPark::print() const
         char osc_message_buffer[255];
 
         // Currently only support messages with one type_tag
-        Serial.print("The type tag is: ");
-        Serial.println(m_type_tags[0]);
-        switch (m_type_tags[0])
-        {
-            case 'i':
-                snprintf((char*)osc_message_buffer, sizeof(osc_message_buffer), "%s,%s(%ld)", m_addr, m_type_tags, m_value.data.i_value);
-                break;
-            case 'f':
-                // Convert float to string with fixed precision
-                char float_str[7];  // Allocate a buffer for the string representation of the float (4 decimals + '.' + the integer part + '\0')
-                dtostrf(m_value.data.f_value, 1, 4, float_str);  // dtostrf converts float to string with 4 decimals
-                snprintf((char*)osc_message_buffer, sizeof(osc_message_buffer), "%s,%s(%s)", m_addr, m_type_tags, float_str);
-                break;
-            case 's':
-                snprintf((char*)osc_message_buffer, sizeof(osc_message_buffer), "%s,%s(%s)", m_addr, m_type_tags, m_value.data.s_value);
-                break;
-            default:
-                snprintf((char*)osc_message_buffer, sizeof(osc_message_buffer), "%s,%s(error parsing the value)", m_addr, m_type_tags);
-                break;
+        if (m_values_len > 0)
+        { // Parentheses added after the type tags for clarity
+            switch (m_type_tags[0])
+            {
+                case 'i':
+                    snprintf((char*)osc_message_buffer, sizeof(osc_message_buffer), "%s,%s(%ld)", m_addr, m_type_tags, m_value.data.i_value);
+                    break;
+                case 'f':
+                    // Convert float to string with fixed precision
+                    char float_str[7];  // Allocate a buffer for the string representation of the float (4 decimals + '.' + the integer part + '\0')
+                    dtostrf(m_value.data.f_value, 1, 4, float_str);  // dtostrf converts float to string with 4 decimals
+                    snprintf((char*)osc_message_buffer, sizeof(osc_message_buffer), "%s,%s(%s)", m_addr, m_type_tags, float_str);
+                    break;
+                case 's':
+                    snprintf((char*)osc_message_buffer, sizeof(osc_message_buffer), "%s,%s(%s)", m_addr, m_type_tags, m_value.data.s_value);
+                    break;
+                default:
+                    snprintf((char*)osc_message_buffer, sizeof(osc_message_buffer), "%s,%s(error parsing the value)", m_addr, m_type_tags);
+                    break;
+            }
         }
-        // Parentheses added after the type tags for clarity
+        else
+        {
+            // Only address
+            snprintf((char*)osc_message_buffer, sizeof(osc_message_buffer), "%s", m_addr);
+        }
         Serial.println(osc_message_buffer);
     }
 }
@@ -328,8 +402,11 @@ void OSCPark::info() const
     snprintf((char*)buffer, sizeof(buffer), "Address: %s", m_addr);
     Serial.println(buffer);
 
-    snprintf((char*)buffer, sizeof(buffer), "Type tags: %s", m_type_tags);
-    Serial.println(buffer);
+    if (m_type_len)
+    {
+        snprintf((char*)buffer, sizeof(buffer), "Type tags: %s", m_type_tags);
+        Serial.println(buffer);
+    }
 
     // Currently only support messages with one type_tag
     switch (m_type_tags[0])
@@ -345,6 +422,9 @@ void OSCPark::info() const
             break;
         case 's':
             snprintf((char*)buffer, sizeof(buffer), "m_value.data.s_value: %s", m_value.data.s_value);
+            break;
+        default:
+            snprintf((char*)buffer, sizeof(buffer), "NO VALUE");
             break;
     }
     Serial.println(buffer);
