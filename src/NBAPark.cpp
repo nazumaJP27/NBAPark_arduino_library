@@ -103,7 +103,7 @@ bool MVPHoopsLayouts::init(const Layout* in_layouts_arr, const uint8_t in_size)
         // Invalid - raise error
         return false;
     }
-    m_layouts_arr = in_layouts_arr;
+    m_layouts_arr = in_layouts_arr;                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
 
     // Copy the bool array from the Layout obj id
     copy_layout(&m_layouts_arr[m_curr]);
@@ -169,12 +169,14 @@ MVPHoopsLayouts::MVPState MVPHoopsLayouts::update(const int in_time)
     return MVP_RUNNING;
 }
 
-void MVPHoopsLayouts::reset()
+MVPHoopsLayouts::MVPState MVPHoopsLayouts::reset()
 {
     m_curr = 0;
     m_next = 1;
     if (m_layouts_arr)
         copy_layout(&m_layouts_arr[m_curr]);
+
+    return MVP_GAME_OVER;
 }
 // MVPHoopsLayouts (end)
 
@@ -268,6 +270,61 @@ void OSCPark::Value::setup(const char in_type_tag, const uint8_t* in_ptr)
     }
 }
 
+// Sets a string value for the instance
+void OSCPark::set_int(const int in_int)
+{
+    // Make sure to free the dinamic memory of s_value
+    if (m_value.type_tag == 's')
+    {
+        delete m_value.data.s_value;
+    }
+
+    m_value.data.i_value = in_int;
+
+    m_values_len = 1;
+    m_type_len = 1;
+    m_type_tags[0] = 'i';
+    m_value.type_tag = 'i';
+}
+
+// Sets a string value for the instance
+void OSCPark::set_float(const float in_float)
+{
+    // Make sure to free the dinamic memory of s_value
+    if (m_value.type_tag == 's')
+    {
+        delete m_value.data.s_value;
+    }
+
+    m_value.data.f_value = in_float;
+
+    m_values_len = 1;
+    m_type_len = 1;
+    m_type_tags[0] = 'f';
+    m_value.type_tag = 'f';
+}
+
+// Sets a string value for the instance
+void OSCPark::set_string(const char* in_str)
+{
+    // Make sure to free the dinamic memory of s_value
+    if (m_value.type_tag == 's')
+    {
+        delete m_value.data.s_value;
+    }
+
+    uint8_t str_len = strnlen(in_str, 255);
+
+    m_value.data.s_value = new char[str_len];
+    memcpy(m_value.data.s_value, in_str, str_len);
+    m_value.data.s_value[str_len] = '\0';
+
+    m_values_len = 1;
+    m_type_len = 1;
+    m_type_tags[0] = 's';
+    m_value.type_tag = 's';
+}
+
 void OSCPark::send(Print &in_p)
 {
     Serial.println("SENDING");
@@ -313,9 +370,10 @@ void OSCPark::send(Print &in_p)
             in_p.write((uint8_t*) &temp, sizeof(uint32_t));
             break;
         case 's':
-            in_p.write(reinterpret_cast<uint8_t*>(m_value.data.s_value), 255); // Max length of 255
+            int s_value_len = strnlen(m_value.data.s_value, 255);
+            in_p.write(reinterpret_cast<uint8_t*>(m_value.data.s_value), s_value_len); // Max length of 255
             in_p.write('\0');
-            total_len = (strnlen(m_value.data.s_value, 255)) + 1;
+            total_len = s_value_len + 1;
             padding_len = (4 - (total_len % 4)) % 4;
             while (padding_len--)
             {

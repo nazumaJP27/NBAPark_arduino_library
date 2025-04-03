@@ -113,7 +113,7 @@ public:
     // Methods
     bool init(const Layout* in_layouts_arr, const uint8_t in_size);
     MVPState update(int in_time);
-    void reset();
+    MVPState reset(); // Always return MVP_GAME_OVER
 
     // Accessors
     const bool* get_curr_layout() const { return m_curr_layout; }
@@ -141,7 +141,7 @@ class OSCPark
         void setup(const char in_type_tag, const uint8_t* in_ptr);
     };
 
-    char m_addr[64];
+    char m_addr[80];
     char m_type_tags[8];
     Value m_value;
 
@@ -161,6 +161,9 @@ public:
     // Methods
     void init(const uint8_t* in_buffer);
     void init(const char* in_address);
+    void set_int(const int in_int);
+    void set_float(const float in_float);
+    void set_string(const char* in_str);
     void send(Print& in_p);
     void clear();
 
