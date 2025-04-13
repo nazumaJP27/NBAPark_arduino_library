@@ -41,7 +41,7 @@ void loop()
             buffer[buffer_pos] = '\0';
 
             // Check message
-            if (strncmp(buffer, "ball detected", strnlen(buffer, BUFFER_SIZE)) == 0)
+            if (strncmp(buffer, "ball detected", BUFFER_SIZE) == 0)
             {
                 // Light up the board led for one second
                 digitalWrite(LED_BUILTIN, HIGH);

@@ -14,29 +14,9 @@
 // Constants
 #define ULONG_MAX 4294967295UL      // Max value for an usigned long type (used to calculate the offset in Timer)
 #define SOUND_SPEED 0.0343f         // Speed of sound in centimeters per microsecond
-#define BALL_DETECTION_THRESHOLD 15 // Value in centimeters
+#define BALL_DETECTION_THRESHOLD 30 // Value in centimeters
+#define BALL_DETECTION_COOLDOWN 500 // Value in milliseconds
 #define NUM_MVP_HOOPS 3
-
-
-// Need a HC-SR04 sensor
-class BasketSensor
-{
-    // Pins used by the ultrasonic sensor
-    uint8_t m_trig_pin;
-    uint8_t m_echo_pin;
-
-public:
-    // Constructors
-    BasketSensor(uint8_t in_trig_pin, uint8_t in_echo_pin);
-
-    // Acessors
-    const uint8_t& get_trig_pin() const { return m_trig_pin; }
-    const uint8_t& get_echo_pin() const { return m_echo_pin; }
-
-    // Methods
-    float get_ultrasonic_distance();
-    bool ball_detected();
-};
 
 
 class Timer
@@ -54,7 +34,63 @@ public:
 
     // Methods
     int reset_timer();
-    unsigned long get_elapsed_time() const;
+    unsigned long get_elapsed_time(bool seconds=true) const;
+};
+
+
+// Need a HC-SR04 sensor
+class BasketSensor
+{
+    // Pins used by the ultrasonic sensor
+    uint8_t m_trig_pin;
+    uint8_t m_echo_pin;
+
+    // Separate hoop state that handle the cooldown for checking sensor after a ball is detected (all in-lined for simplicity)
+    struct HoopCooldown
+    {
+        Timer mil_timer;
+        bool on_cooldown;
+        int cooldown_time;
+
+        // Constructor
+        HoopCooldown() : on_cooldown(false), cooldown_time(0) { mil_timer.reset_timer(); }
+
+        // Methods
+        void set_cooldown(int in_cooldown_amount)
+        {
+            mil_timer.reset_timer();
+            cooldown_time = in_cooldown_amount;
+            on_cooldown = true;
+        }
+
+        void update()
+        {
+            if (on_cooldown && mil_timer.get_elapsed_time(false) > cooldown_time)
+            {
+                on_cooldown = false;
+                cooldown_time = 0;
+            }
+        }
+
+        void reset()
+        {
+            mil_timer.reset_timer();
+            on_cooldown = false;
+            cooldown_time = 0;
+        }
+    } m_hoop_cooldown;
+
+public:
+    // Constructors
+    BasketSensor(uint8_t in_trig_pin, uint8_t in_echo_pin);
+
+    // Acessors
+    const uint8_t& get_trig_pin() const { return m_trig_pin; }
+    const uint8_t& get_echo_pin() const { return m_echo_pin; }
+
+    // Methods
+    float get_ultrasonic_distance();
+    bool ball_detected();
 };
 
 

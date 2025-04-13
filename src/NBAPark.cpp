@@ -8,6 +8,34 @@
 
 #include "NBAPark.h"
 
+// Timer Class (begin)
+// Constructors
+Timer::Timer() : m_start_time(millis()), m_offset_time(ULONG_MAX)
+{
+    m_offset_time = ULONG_MAX - m_start_time + 1;
+}
+
+int Timer::reset_timer()
+{
+    m_start_time = millis();
+    m_offset_time = ULONG_MAX - m_start_time + 1;
+    return 0;
+}
+
+unsigned long Timer::get_elapsed_time(bool seconds=true) const
+{
+    unsigned long now = millis();
+
+    // Calculate elapsed time, handling overflow by adding offset time
+    unsigned long elapsed = (now >= m_start_time) ? (now - m_start_time) : (m_offset_time + now);
+
+    if (seconds)
+        return elapsed / 1000; // Converts to seconds
+    return elapsed;
+}
+// Timer (end)
+
+
 // BasketSensor Class (begin)
 // Constructors
 BasketSensor::BasketSensor(uint8_t in_trig_pin, uint8_t in_echo_pin) : m_trig_pin(in_trig_pin), m_echo_pin(in_echo_pin)
@@ -18,11 +46,20 @@ BasketSensor::BasketSensor(uint8_t in_trig_pin, uint8_t in_echo_pin) : m_trig_pi
 }
 
 // Methods
+// Update the sensor cooldown state and check for ball detection
 bool BasketSensor::ball_detected()
 {
-    float distance = get_ultrasonic_distance();
-
-    return distance < BALL_DETECTION_THRESHOLD && distance > 0;
+    m_hoop_cooldown.update();
+    if (!m_hoop_cooldown.on_cooldown)
+    {
+        float distance = get_ultrasonic_distance();
+        if (distance < BALL_DETECTION_THRESHOLD && distance > 2)
+        {
+            m_hoop_cooldown.set_cooldown(BALL_DETECTION_COOLDOWN);
+            return true;
+        }
+    }
+    return false;
 }
 
 float BasketSensor::get_ultrasonic_distance()
@@ -39,30 +76,6 @@ float BasketSensor::get_ultrasonic_distance()
 }
 // BasketSensor Class (end)
 
-
-// Timer Class (begin)
-// Constructors
-Timer::Timer() : m_start_time(millis()), m_offset_time(ULONG_MAX)
-{
-    m_offset_time = ULONG_MAX - m_start_time + 1;
-}
-
-int Timer::reset_timer()
-{
-    m_start_time = millis();
-    m_offset_time = ULONG_MAX - m_start_time + 1;
-    return 0;
-}
-
-unsigned long Timer::get_elapsed_time() const
-{
-    unsigned long now = millis();
-    // Calculate elapsed time, handling overflow by adding offset time
-    unsigned long elapsed = (now >= m_start_time) ? (now - m_start_time) : (m_offset_time + now);
-
-    return elapsed / 1000; // Converts to seconds
-}
-// Timer (end)
 
 // Layout (begin)
 // Constructors
@@ -103,7 +116,7 @@ bool MVPHoopsLayouts::init(const Layout* in_layouts_arr, const uint8_t in_size)
         // Invalid - raise error
         return false;
     }
-    m_layouts_arr = in_layouts_arr;                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
+    m_layouts_arr = in_layouts_arr;
 
     // Copy the bool array from the Layout obj id
     copy_layout(&m_layouts_arr[m_curr]);
@@ -145,7 +158,7 @@ void MVPHoopsLayouts::copy_layout(const Layout* in_layout)
         m_curr_layout[i] = layout_ptr[i];
 }
 
-// Han
+// Update the current valid layout by dereferencing the next available Layout obj by checking the in_time argument and returning the "game state"
 MVPHoopsLayouts::MVPState MVPHoopsLayouts::update(const int in_time)
 {
     if (!m_layouts_arr)
@@ -157,6 +170,7 @@ MVPHoopsLayouts::MVPState MVPHoopsLayouts::update(const int in_time)
         if (m_layouts_arr[++m_curr].id == Layout::LAYOUT_STOP)
         {
             // End of the transitions
+            reset();
             return MVP_GAME_OVER;
         }
         copy_layout(&m_layouts_arr[m_next++]);
@@ -225,6 +239,8 @@ void OSCPark::init(const uint8_t* in_buffer)
     m_value.setup(m_type_tags[0], ptr);
 }
 
+// Initialize an instance with an address but without a value.
+// If the object was initialized previously with a value of type String, ensure to call clear() to free any dynamically allocated memory.
 void OSCPark::init(const char* in_address)
 {
     memcpy(&m_addr, in_address, sizeof(m_addr));
@@ -274,9 +290,9 @@ void OSCPark::Value::setup(const char in_type_tag, const uint8_t* in_ptr)
 void OSCPark::set_int(const int in_int)
 {
     // Make sure to free the dinamic memory of s_value
-    if (m_value.type_tag == 's')
+    if (m_value.type_tag == 's' && m_value.data.s_value != nullptr)
     {
-        delete m_value.data.s_value;
+        delete[] m_value.data.s_value;
     }
 
     m_value.data.i_value = in_int;
@@ -291,9 +307,9 @@ void OSCPark::set_int(const int in_int)
 void OSCPark::set_float(const float in_float)
 {
     // Make sure to free the dinamic memory of s_value
-    if (m_value.type_tag == 's')
+    if (m_value.type_tag == 's' && m_value.data.s_value != nullptr)
     {
-        delete m_value.data.s_value;
+        delete[] m_value.data.s_value;
     }
 
     m_value.data.f_value = in_float;
@@ -308,14 +324,14 @@ void OSCPark::set_float(const float in_float)
 void OSCPark::set_string(const char* in_str)
 {
     // Make sure to free the dinamic memory of s_value
-    if (m_value.type_tag == 's')
+    if (m_value.type_tag == 's' && m_value.data.s_value != nullptr)
     {
-        delete m_value.data.s_value;
+        delete[] m_value.data.s_value;
     }
 
     uint8_t str_len = strnlen(in_str, 255);
 
-    m_value.data.s_value = new char[str_len];
+    m_value.data.s_value = new char[str_len + 1];
     memcpy(m_value.data.s_value, in_str, str_len);
     m_value.data.s_value[str_len] = '\0';
 
@@ -327,7 +343,7 @@ void OSCPark::set_string(const char* in_str)
 
 void OSCPark::send(Print &in_p)
 {
-    Serial.println("SENDING");
+    //Serial.println("SENDING");
     uint8_t padding_len;
     uint8_t total_len;
 
@@ -386,6 +402,7 @@ void OSCPark::send(Print &in_p)
     }
 }
 
+// Reset the member variables to zero and free any dynamically allocated memory
 void OSCPark::clear()
 {
     m_addr[0] = '\0';
@@ -420,6 +437,7 @@ void OSCPark::print() const
     else
     {
         char osc_message_buffer[255];
+        osc_message_buffer[0] = '\0';
 
         // Currently only support messages with one type_tag
         if (m_values_len > 0)
@@ -427,19 +445,26 @@ void OSCPark::print() const
             switch (m_type_tags[0])
             {
                 case 'i':
-                    snprintf((char*)osc_message_buffer, sizeof(osc_message_buffer), "%s,%s(%ld)", m_addr, m_type_tags, m_value.data.i_value);
+                    snprintf((char*)osc_message_buffer, sizeof(osc_message_buffer), "%s,%c(%ld)", m_addr, m_type_tags[0], m_value.data.i_value);
                     break;
                 case 'f':
                     // Convert float to string with fixed precision
                     char float_str[7];  // Allocate a buffer for the string representation of the float (4 decimals + '.' + the integer part + '\0')
                     dtostrf(m_value.data.f_value, 1, 4, float_str);  // dtostrf converts float to string with 4 decimals
-                    snprintf((char*)osc_message_buffer, sizeof(osc_message_buffer), "%s,%s(%s)", m_addr, m_type_tags, float_str);
+                    snprintf((char*)osc_message_buffer, sizeof(osc_message_buffer), "%s,%c(%s)", m_addr, m_type_tags[0], float_str);
                     break;
                 case 's':
-                    snprintf((char*)osc_message_buffer, sizeof(osc_message_buffer), "%s,%s(%s)", m_addr, m_type_tags, m_value.data.s_value);
+                    if (m_value.data.s_value != nullptr)
+                    {
+                        snprintf((char*)osc_message_buffer, sizeof(osc_message_buffer), "%s,%c(%s)", m_addr, m_type_tags[0], m_value.data.s_value);
+                    }
+                    else
+                    {
+                        snprintf((char*)osc_message_buffer, sizeof(osc_message_buffer), "%s,%c(NULL)", m_addr, m_type_tags[0]);
+                    }
                     break;
                 default:
-                    snprintf((char*)osc_message_buffer, sizeof(osc_message_buffer), "%s,%s(error parsing the value)", m_addr, m_type_tags);
+                    snprintf((char*)osc_message_buffer, sizeof(osc_message_buffer), "%s,%c(error parsing the value)", m_addr, m_type_tags[0]);
                     break;
             }
         }
@@ -462,7 +487,7 @@ void OSCPark::info() const
 
     if (m_type_len)
     {
-        snprintf((char*)buffer, sizeof(buffer), "Type tags: %s", m_type_tags);
+        snprintf((char*)buffer, sizeof(buffer), "Type tags: %c", m_type_tags[0]);
         Serial.println(buffer);
     }
 
@@ -479,7 +504,14 @@ void OSCPark::info() const
             snprintf((char*)buffer, sizeof(buffer), "m_value.data.f_value: %s", float_str);
             break;
         case 's':
-            snprintf((char*)buffer, sizeof(buffer), "m_value.data.s_value: %s", m_value.data.s_value);
+            if (m_value.data.s_value != nullptr)
+            {
+                snprintf((char*)buffer, sizeof(buffer), "m_value.data.s_value: %s", m_value.data.s_value);
+            }
+            else
+            {
+                snprintf((char*)buffer, sizeof(buffer), "m_value.data.s_value: NULL");
+            }
             break;
         default:
             snprintf((char*)buffer, sizeof(buffer), "NO VALUE");
