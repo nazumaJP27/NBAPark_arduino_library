@@ -53,7 +53,7 @@ bool BasketSensor::ball_detected()
     if (!m_hoop_cooldown.on_cooldown)
     {
         float distance = get_ultrasonic_distance();
-        if (distance < BALL_DETECTION_THRESHOLD && distance > 2)
+        if (distance > 2 && distance < BALL_DETECTION_THRESHOLD)
         {
             m_hoop_cooldown.set_cooldown(BALL_DETECTION_COOLDOWN);
             return true;
@@ -64,14 +64,19 @@ bool BasketSensor::ball_detected()
 
 float BasketSensor::get_ultrasonic_distance()
 {
+    unsigned long start_micros = micros();
+
     // Send a pulse to the ultrasonic sensor
     digitalWrite(m_trig_pin, LOW);
-    delayMicroseconds(2);
+    while (micros() - start_micros < 2);
     digitalWrite(m_trig_pin, HIGH);
-    delayMicroseconds(10);
+    while (micros() - start_micros < 12);
     digitalWrite(m_trig_pin, LOW);
 
-    unsigned long duration = pulseIn(m_echo_pin, HIGH);   // Read the echo signal
+    // Read the echo signal
+    unsigned long duration = pulseIn(m_echo_pin, HIGH, BALL_DETECTION_TIMEOUT);
+    if (duration == 0) return -1; // timeout reached
+
     return (duration * SOUND_SPEED) / 2; // Caculate distance in centimeters
 }
 // BasketSensor Class (end)

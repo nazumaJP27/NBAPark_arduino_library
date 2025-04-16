@@ -16,6 +16,7 @@
 #define SOUND_SPEED 0.0343f         // Speed of sound in centimeters per microsecond
 #define BALL_DETECTION_THRESHOLD 30 // Value in centimeters
 #define BALL_DETECTION_COOLDOWN 500 // Value in milliseconds
+#define BALL_DETECTION_TIMEOUT 5000 // Value in microseconds (3-5ms timeout should be enough for reads up to ~50cm)
 #define NUM_MVP_HOOPS 3
 
 
@@ -50,7 +51,7 @@ class BasketSensor
     {
         Timer mil_timer;
         bool on_cooldown;
-        int cooldown_time;
+        uint16_t cooldown_time;
 
         // Constructor
         HoopCooldown() : on_cooldown(false), cooldown_time(0) { mil_timer.reset_timer(); }
