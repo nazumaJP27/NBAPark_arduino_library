@@ -2,7 +2,7 @@
  * NBA Park Arduino Library
  * Description: Example program that reads custom OSC messages send by Resolume Arena to correctly read values from three BasketSensor objs
                 working in conjunction with a MVPHoopsLayout instance to count basketballs that go through the rim at specific times based
-                on the clip projected in the Resolume composition, displaying the ball count in real time.
+                on the clip projected in the Resolume composition, displaying the score count of the game in real time.
  * Author: José Paulo Seibt Neto
  * Created: Mar - 2025
  * Last Modified: Apr - 2025
@@ -11,10 +11,16 @@
 #include <NBAPark.h>
 #include <Ethernet.h>
 #include <EthernetUDP.h>
-#include <string.h>     // strcmp
+#include <string.h>       // strcmp
 
+// Time
 Timer timer;
 int now;
+
+// MVP hoops and sensors
+MVPHoopsLayouts layouts_mvp;
+const bool* current_mvp_layout;
+MVPHoopsLayouts::MVPState mvp_state;
 
 const uint8_t trig_pins[] = {2, 4, 6};
 const uint8_t echo_pins[] = {3, 5, 7};
@@ -58,24 +64,24 @@ BasketSensor mvp_baskets[] = {
     BasketSensor(trig_pins[2], echo_pins[2])
 };
 
-uint8_t ball_count;
+// Stat tracking
+bool new_high_score;
+uint16_t high_score;
+uint16_t score_count;
+uint16_t games_left_before_reset_hs; // Will set the high_score to the default value when it reaches zero
 
-MVPHoopsLayouts layouts_mvp;
-const bool* current_mvp_layout;
-MVPHoopsLayouts::MVPState mvp_state;
-
+// OSC messages and network configuration
 uint8_t osc_message_buffer[255];
-
 EthernetUDP udp;
-
-const uint8_t board_mac[] = {0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0x02};
-const IPAddress board_ip(172, 30, 4, 199);
-const IPAddress pc_ip(172, 30, 4, 102);
+const uint8_t board_mac[] = {0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0x03};
+const IPAddress board_ip(172, 30, 6, 199);
+const IPAddress pc_ip(172, 30, 6, 58);
 const int resolume_in_port = 7000;
 const int resolume_out_port = 7001;
 
 // Prototypes
-void send_osc_to_resolume(uint8_t in_ball_count, bool zero_prefix=false);
+void send_high_score_to_resolume(uint16_t in_high_score);
+void send_score_to_resolume(uint16_t in_score);
 void reset_game_state();
 
 void setup()
@@ -89,8 +95,12 @@ void setup()
     Ethernet.begin(board_mac, board_ip);
     udp.begin(resolume_out_port);
 
+    games_left_before_reset_hs = UINT16_MAX;
     now = timer.reset_timer();
-    ball_count = 0;
+
+    new_high_score = false;
+    high_score = DEFAULT_HIGH_SCORE;
+    score_count = 0;
 }
 
 void loop()
@@ -106,10 +116,20 @@ void loop()
             if (strncmp(msg.get_addr_cmp(), "/game", msg.get_addr_len()) == 0)
             {
                 reset_game_state();
-                send_osc_to_resolume(0);
+                send_score_to_resolume(0);
+                // Check for reseting the high score
+                if (--games_left_before_reset_hs < 0 || high_score > 100)
+                {
+                    high_score = DEFAULT_HIGH_SCORE;
+                    games_left_before_reset_hs = UINT16_MAX;
+                }
+                send_high_score_to_resolume(high_score);
             }
         }
-        Serial.println("WAITING /game");
+        else
+        {
+            Serial.println("WAITING /game");
+        }
     }
 
     // Check if the Resolume clip is the WAIT
@@ -125,6 +145,7 @@ void loop()
         }
     }
 
+    // GAME
     now = timer.get_elapsed_time();
     mvp_state = layouts_mvp.update(now);
 
@@ -138,14 +159,34 @@ void loop()
         mvp_state = MVPHoopsLayouts::MVPState::MVP_GAME_OVER;
     }
     else
-    { // Check the sensors
+    {   // Check the sensors
         for (int i = 0; i < NUM_MVP_HOOPS; ++i)
         {
             if (current_mvp_layout[i] && mvp_baskets[i].ball_detected())
             {
+                score_count += 2;
+                send_score_to_resolume(score_count);
                 Serial.print("BALL DETECTED! ball count: ");
-                Serial.println(++ball_count);
-                send_osc_to_resolume(ball_count);
+                Serial.println(score_count);
+
+                // Check for new high score
+                if (score_count > high_score)
+                {
+                    high_score = score_count;
+                    Serial.println("New High Score!");
+                    send_high_score_to_resolume(high_score);
+
+                    // Check if the new high score clip was already triggered
+                    if (!new_high_score)
+                    {   // Activate the new high score pop-up clip on Resolume Arena
+                        snprintf(reinterpret_cast<char*>(osc_message_buffer), sizeof(osc_message_buffer), "/composition/layers/4/clips/2/connect");
+                        OSCPark msg(reinterpret_cast<char*>(osc_message_buffer));
+                        udp.beginPacket(pc_ip, resolume_in_port);
+                        msg.send(udp);
+                        udp.endPacket();
+                        new_high_score = true;
+                    }
+                }
             }
         }
         //Serial.print("MVP State: ");
@@ -158,35 +199,37 @@ void loop()
     }
 }
 
-void send_osc_to_resolume(uint8_t in_ball_count, bool zero_prefix=false)
-{
-    // Construct the OSC address using snprintf to write into the global buffer        /composition/layers/2/clips/2/video/effects/textblock/effect/text/params/lines
-    memset(osc_message_buffer, 0, sizeof(osc_message_buffer));
-    snprintf(reinterpret_cast<char*>(osc_message_buffer), sizeof(osc_message_buffer), "/composition/layers/2/clips/1/video/effects/textblock/effect/text/params/lines");
 
+// Send OSC message to change the value in the High Score number text block in Resolume Arena
+void send_high_score_to_resolume(uint16_t in_high_score)
+{
+    memset(osc_message_buffer, 0, sizeof(osc_message_buffer));
+
+    // Set string value
+    // Construct the OSC address using snprintf to write into the global buffer
+    snprintf(reinterpret_cast<char*>(osc_message_buffer), sizeof(osc_message_buffer), "/composition/layers/5/clips/1/video/effects/textblock2/effect/text/params/lines");
     OSCPark msg(reinterpret_cast<char*>(osc_message_buffer));
 
-    // Set the value for the string
-    char bc_buffer[4];
-    itoa(in_ball_count, bc_buffer, 10);
+    char score_buffer[4]; // Store chars for the numbers of the high score
+    itoa(in_high_score, score_buffer, 10);
 
-    if (zero_prefix && in_ball_count < 10)
+    if (in_high_score < 10)
     {   // With zero prefix for numbers 0-9, e.g. "07"
-        char tmp = bc_buffer[0];
-        bc_buffer[0] = '0';
-        bc_buffer[1] = tmp;
-        bc_buffer[2] = '\0';
+        char tmp = score_buffer[0];
+        score_buffer[0] = '0';
+        score_buffer[1] = tmp;
+        score_buffer[2] = '\0';
     }
-    else if (in_ball_count < 100)
+    else if (in_high_score < 100)
     {   // Numbers 10-99, e.g. "27"
-        bc_buffer[2] = '\0';
+        score_buffer[2] = '\0';
     }
     else
     {   // Three digit numbers (max), e.g. "127"
-        bc_buffer[3] = '\0';
+        score_buffer[3] = '\0';
     }
 
-    msg.set_string(bc_buffer);
+    msg.set_string(score_buffer);
 
     // Send message through EthernetUDP global instance
     udp.beginPacket(pc_ip, resolume_in_port);
@@ -194,11 +237,49 @@ void send_osc_to_resolume(uint8_t in_ball_count, bool zero_prefix=false)
     udp.endPacket();
 }
 
-// Reset global instances used in the game logic, like layouts, sensors, and counters
+// Send OSC message to change the value in the Score number text block in Resolume Arena
+void send_score_to_resolume(uint16_t in_score)
+{
+    memset(osc_message_buffer, 0, sizeof(osc_message_buffer));
+
+    // Set string value
+    // Construct the OSC address using snprintf to write into the global buffer
+    snprintf(reinterpret_cast<char*>(osc_message_buffer), sizeof(osc_message_buffer), "/composition/layers/3/clips/2/video/effects/textblock2/effect/text/params/lines");
+    OSCPark msg(reinterpret_cast<char*>(osc_message_buffer));
+
+    char score_buffer[4]; // Used to store the chars for the number of the high score and score
+    itoa(in_score, score_buffer, 10);
+
+    if (in_score < 10)
+    {   // With zero prefix for numbers 0-9, e.g. "07"
+        char tmp = score_buffer[0];
+        score_buffer[0] = '0';
+        score_buffer[1] = tmp;
+        score_buffer[2] = '\0';
+    }
+    else if (in_score < 100)
+    {   // Numbers 10-99, e.g. "27"
+        score_buffer[2] = '\0';
+    }
+    else
+    {   // Three digit numbers (max), e.g. "127"
+        score_buffer[3] = '\0';
+    }
+
+    msg.set_string(score_buffer);
+
+    // Send message through EthernetUDP global instance
+    udp.beginPacket(pc_ip, resolume_in_port);
+    msg.send(udp);
+    udp.endPacket();
+}
+
+// Reset global instances used in the game logic, like layouts, sensors, and some counters
 void reset_game_state()
 {
     layouts_mvp.reset();
     now = timer.reset_timer();
     mvp_state = layouts_mvp.update(now);
-    ball_count = 0;
+    new_high_score = false;
+    score_count = 0;
 }

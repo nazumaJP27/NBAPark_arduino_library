@@ -13,11 +13,13 @@
 
 // Constants
 #define ULONG_MAX 4294967295UL      // Max value for an usigned long type (used to calculate the offset in Timer)
+#define UINT16_MAX 65535U           // Max value for an uint16_t (used to set the number of games before reseting the high score in the GameMVP example)
 #define SOUND_SPEED 0.0343f         // Speed of sound in centimeters per microsecond
 #define BALL_DETECTION_THRESHOLD 30 // Value in centimeters
 #define BALL_DETECTION_COOLDOWN 500 // Value in milliseconds
 #define BALL_DETECTION_TIMEOUT 5000 // Value in microseconds (3-5ms timeout should be enough for reads up to ~50cm)
 #define NUM_MVP_HOOPS 3
+#define DEFAULT_HIGH_SCORE 10U      // Default high score value (used in the GameMVP example program)
 
 
 class Timer
