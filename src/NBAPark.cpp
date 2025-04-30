@@ -10,24 +10,24 @@
 
 // Timer Class (begin)
 // Constructors
-Timer::Timer() : m_start_time(millis()), m_offset_time(ULONG_MAX)
+Timer::Timer() : m_start_time(millis()), m_offset_time(UINT32_MAX)
 {
-    m_offset_time = ULONG_MAX - m_start_time + 1;
+    m_offset_time = UINT32_MAX - m_start_time + 1;
 }
 
-int Timer::reset_timer()
+uint32_t Timer::reset()
 {
     m_start_time = millis();
-    m_offset_time = ULONG_MAX - m_start_time + 1;
+    m_offset_time = UINT32_MAX - m_start_time + 1;
     return 0;
 }
 
-unsigned long Timer::get_elapsed_time(bool seconds=true) const
+uint32_t Timer::get_elapsed_time(bool seconds) const
 {
-    unsigned long now = millis();
+    uint32_t now = millis();
 
     // Calculate elapsed time, handling overflow by adding offset time
-    unsigned long elapsed = (now >= m_start_time) ? (now - m_start_time) : (m_offset_time + now);
+    uint32_t elapsed = (now >= m_start_time) ? (now - m_start_time) : (m_offset_time + now);
 
     if (seconds)
         return elapsed / 1000; // Converts to seconds
@@ -64,7 +64,7 @@ bool BasketSensor::ball_detected()
 
 float BasketSensor::get_ultrasonic_distance()
 {
-    unsigned long start_micros = micros();
+    uint32_t start_micros = micros();
 
     // Send a pulse to the ultrasonic sensor
     digitalWrite(m_trig_pin, LOW);
@@ -74,7 +74,7 @@ float BasketSensor::get_ultrasonic_distance()
     digitalWrite(m_trig_pin, LOW);
 
     // Read the echo signal
-    unsigned long duration = pulseIn(m_echo_pin, HIGH, BALL_DETECTION_TIMEOUT);
+    uint32_t duration = pulseIn(m_echo_pin, HIGH, BALL_DETECTION_TIMEOUT);
     if (duration == 0) return -1; // timeout reached
 
     return (duration * SOUND_SPEED) / 2; // Caculate distance in centimeters
@@ -148,7 +148,7 @@ bool MVPHoopsLayouts::validate_layouts_arr(const Layout* in_layouts_arr, const u
     // Iterate until the second to last element
     for(; i < in_size - 1 && curr_layout.id != Layout::LAYOUT_STOP; curr_layout = in_layouts_arr[++i])
     {
-        if (curr_layout.id > Layout::NUM_LAYOUTS || curr_layout.id < 0) return false;
+        if (curr_layout.id > Layout::NUM_LAYOUTS) return false;
     }
 
     // Checks the in_size and if the last element in in_layouts_arr is the sentinel value
@@ -217,12 +217,14 @@ OSCPark::OSCPark(const char* in_address)
 
 void OSCPark::init(const uint8_t* in_buffer)
 {
-    /*Serial.print("Raw bytes: ");
-    for (int i = 0; i < 65; ++i)
-    {  // Adjust size to print enough bytes
-        Serial.print(in_buffer[i], HEX);
-        Serial.print(" ");
-    }*/
+    debugLib("[OSCPark::init] Raw bytes: ");
+    for (int i = 0; i < 65; ++i) // Condition can be adjusted to print enough bytes
+    {
+        debugLibVal(in_buffer[i], HEX);
+        debugLib(" ");
+    }
+    debugLibln();
+
     const uint8_t* ptr = in_buffer;
 
     // Extract address pattern (null-terminated, 4-byte aligned)
@@ -258,26 +260,32 @@ void OSCPark::init(const char* in_address)
 
 void OSCPark::Value::setup(const char in_type_tag, const uint8_t* in_ptr)
 {
+    debugLib("[OSCPark::Value::setup] ");
     uint8_t str_size = 0;
     char* str_buffer = nullptr;
 
     switch (in_type_tag)
     {
         case 'i':
-            //Serial.println("INT");
+        {
+            debugLib("Type: INT\n");
             type_tag = 'i';
             memcpy(&data.i_value, in_ptr, sizeof(data.i_value));
             data.i_value = __builtin_bswap32(data.i_value);
             break;
+        }
         case 'f':
-            //Serial.println("FLOAT");
+        {
+            debugLib("Type: FLOAT\n");
             type_tag = 'f';
             memcpy(&data.f_value, in_ptr, sizeof(data.f_value));
             uint32_t temp = __builtin_bswap32(*reinterpret_cast<uint32_t*>(&data.f_value));
             data.f_value = *reinterpret_cast<float*>(&temp);
             break;
+        }
         case 's':
-            //Serial.println("STRING");
+        {
+            debugLib("Type: STRING\n");
             type_tag = 's';
             str_size = strnlen((const char*)in_ptr, 255);
             str_buffer = new char[str_size + 1];
@@ -285,9 +293,12 @@ void OSCPark::Value::setup(const char in_type_tag, const uint8_t* in_ptr)
             str_buffer[str_size] = '\0';
             data.s_value = str_buffer;
             break;
+        }
         default:
-            Serial.println("No valid type flag parsed...");
+        {
+            debugLib("No valid type flag parsed...\n");
             break;
+        }
     }
 }
 
@@ -297,6 +308,7 @@ void OSCPark::set_int(const int in_int)
     // Make sure to free the dinamic memory of s_value
     if (m_value.type_tag == 's' && m_value.data.s_value != nullptr)
     {
+        debugLib("[OSCPark::set_int] s_value memory freed");
         delete[] m_value.data.s_value;
     }
 
@@ -314,6 +326,7 @@ void OSCPark::set_float(const float in_float)
     // Make sure to free the dinamic memory of s_value
     if (m_value.type_tag == 's' && m_value.data.s_value != nullptr)
     {
+        debugLib("[OSCPark::set_float] s_value memory freed");
         delete[] m_value.data.s_value;
     }
 
@@ -331,6 +344,7 @@ void OSCPark::set_string(const char* in_str)
     // Make sure to free the dinamic memory of s_value
     if (m_value.type_tag == 's' && m_value.data.s_value != nullptr)
     {
+        debugLib("[OSCPark::set_string] Previous s_value memory freed");
         delete[] m_value.data.s_value;
     }
 
@@ -348,7 +362,7 @@ void OSCPark::set_string(const char* in_str)
 
 void OSCPark::send(Print &in_p)
 {
-    //Serial.println("SENDING");
+    debugLib("[OSCPark::send] SENDING\n");
     uint8_t padding_len;
     uint8_t total_len;
 
@@ -368,7 +382,7 @@ void OSCPark::send(Print &in_p)
 
     // Write type tag
     in_p.write(static_cast<uint8_t>(','));
-    in_p.write((uint8_t) m_type_tags[0]);
+    in_p.write(static_cast<uint8_t>(m_type_tags[0]));
     in_p.write('\0'); // Adding null terminator
     // Add padding if neccessary
     total_len = m_type_len + 2; // +1 for the comma and +1 for the null terminator
@@ -378,19 +392,23 @@ void OSCPark::send(Print &in_p)
         in_p.write('\0');
     }
 
-    uint32_t temp;
     switch (m_type_tags[0])
     {
         case 'i':
-            temp = __builtin_bswap32(m_value.data.i_value);
+        {
+            uint32_t temp = __builtin_bswap32(m_value.data.i_value);
             in_p.write(reinterpret_cast<uint8_t*>(&temp), sizeof(uint32_t));
             break;
+        }
         case 'f':
-            temp = *reinterpret_cast<uint32_t*>(&m_value.data.f_value);
+        {
+            uint32_t temp = *reinterpret_cast<uint32_t*>(&m_value.data.f_value);
             temp = __builtin_bswap32(temp);
-            in_p.write((uint8_t*) &temp, sizeof(uint32_t));
+            in_p.write(reinterpret_cast<uint8_t*>(&temp), sizeof(uint32_t));
             break;
+        }
         case 's':
+        {
             int s_value_len = strnlen(m_value.data.s_value, 255);
             in_p.write(reinterpret_cast<uint8_t*>(m_value.data.s_value), s_value_len); // Max length of 255
             in_p.write('\0');
@@ -401,9 +419,12 @@ void OSCPark::send(Print &in_p)
                 in_p.write('\0');
             }
             break;
+        }
         default:
-            Serial.println("Not a supported type...");
+        {
+            debugLib("Not a supported type...\n");
             break;
+        }
     }
 }
 
@@ -432,12 +453,12 @@ void OSCPark::clear()
     m_value.type_tag = '\0';
 }
 
-// Prints to the Serial Monitor the characters representation of the OSC message in the obj
+// Prints to the DEBUG_OUTPUT the characters representation of the OSC message in the obj
 void OSCPark::print() const
 {
     if (m_addr_len <= 0)
     {
-        Serial.println("OSCPark obj is empty...");
+        DEBUG_OUTPUT.print("OSCPark obj is empty...\n");
     }
     else
     {
@@ -478,22 +499,22 @@ void OSCPark::print() const
             // Only address
             snprintf((char*)osc_message_buffer, sizeof(osc_message_buffer), "%s", m_addr);
         }
-        Serial.println(osc_message_buffer);
+        DEBUG_OUTPUT.print(osc_message_buffer); DEBUG_OUTPUT.print("\n");
     }
 }
 
-// Prints to the Serial Monitor the info of each member var of the obj
+// Prints to the DEBUG_OUTPUT the info of each member var of the obj
 void OSCPark::info() const
 {
     char buffer[255];
 
     snprintf((char*)buffer, sizeof(buffer), "Address: %s", m_addr);
-    Serial.println(buffer);
+    DEBUG_OUTPUT.print(buffer); DEBUG_OUTPUT.print("\n");
 
     if (m_type_len)
     {
         snprintf((char*)buffer, sizeof(buffer), "Type tags: %c", m_type_tags[0]);
-        Serial.println(buffer);
+        DEBUG_OUTPUT.print(buffer); DEBUG_OUTPUT.print("\n");
     }
 
     // Currently only support messages with one type_tag
@@ -522,12 +543,12 @@ void OSCPark::info() const
             snprintf((char*)buffer, sizeof(buffer), "NO VALUE");
             break;
     }
-    Serial.println(buffer);
+    DEBUG_OUTPUT.print(buffer); DEBUG_OUTPUT.print("\n");
 
     snprintf((char*)buffer, sizeof(buffer), "m_addr_len: %d", m_addr_len);
-    Serial.println(buffer);
+    DEBUG_OUTPUT.print(buffer); DEBUG_OUTPUT.print("\n");
 
     snprintf((char*)buffer, sizeof(buffer), "m_type_len: %d", m_type_len);
-    Serial.println(buffer);
+    DEBUG_OUTPUT.print(buffer); DEBUG_OUTPUT.print("\n");
 }
 // OSCPark (end)

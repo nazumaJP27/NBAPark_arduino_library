@@ -10,34 +10,65 @@
 #define NBAPARK_H
 
 #include <Arduino.h>
+#include <stdint.h>  // types uint8_t, uint32_t, etc (Arduino.h should already include this header by default)
+
+// Debug levels
+#define DEBUG_LEVEL 3 // 0 = None, 1 = Sketch only, 2 = Library only, 3 = Sketch and Library
+#define DEBUG_OUTPUT Serial
+
+// Debug macros for Sketch
+#if DEBUG_LEVEL == 1 || DEBUG_LEVEL == 3
+    #define debugSkt(msg) DEBUG_OUTPUT.print(msg)
+    #define debugSktVal(val, format) DEBUG_OUTPUT.print(val, format)
+    #define debugSktln() DEBUG_OUTPUT.print("\n")
+#else
+    #define debugSkt(msg)
+    #define debugSktVal(val, format)
+    #define debugSktln()
+#endif
+
+// Debug macros for Library
+#if DEBUG_LEVEL == 2 || DEBUG_LEVEL == 3
+    #define debugLib(msg) DEBUG_OUTPUT.print(msg)
+    #define debugLibVal(val, format) DEBUG_OUTPUT.print(val, format)
+    #define debugLibln() DEBUG_OUTPUT.print("\n")
+#else
+    #define debugLib(msg)
+    #define debugLibVal(val, format)
+    #define debugLibln()
+#endif
 
 // Constants
-#define ULONG_MAX 4294967295UL      // Max value for an usigned long type (used to calculate the offset in Timer)
-#define UINT16_MAX 65535U           // Max value for an uint16_t (used to set the number of games before reseting the high score in the GameMVP example)
-#define SOUND_SPEED 0.0343f         // Speed of sound in centimeters per microsecond
-#define BALL_DETECTION_THRESHOLD 30 // Value in centimeters
-#define BALL_DETECTION_COOLDOWN 500 // Value in milliseconds
-#define BALL_DETECTION_TIMEOUT 5000 // Value in microseconds (3-5ms timeout should be enough for reads up to ~50cm)
+#define SOUND_SPEED 0.0343f           // Speed of sound in centimeters per microsecond
+#define BALL_DETECTION_THRESHOLD 30   // Value in centimeters
+#define BALL_DETECTION_COOLDOWN 500   // Value in milliseconds
+#define BALL_DETECTION_TIMEOUT 5000   // Value in microseconds (3-5ms timeout should be enough for reads up to ~50cm)
 #define NUM_MVP_HOOPS 3
-#define DEFAULT_HIGH_SCORE 10U      // Default high score value (used in the GameMVP example program)
-
+#define DEFAULT_HIGH_SCORE 10U        // Default high score value (used in the GameMVP example program)
+#define HIGH_SCORE_RESET_TIME 86400U  // Value in seconds
+#define RESOLUME_MVPGAME_ADDRESS "/game" // OSC address of message send by Resolume Arena when the MVP GAME clip is running (transport position)
+#define RESOLUME_MVPWAIT_ADDRESS "/wait" // OSC address of message send by Resolume Arena when the MVP WAIT clip is running (transport position)
+#define RESOLUME_SCORE_ADDRESS "/composition/layers/2/clips/2/video/effects/textblock2/effect/text/params/lines"      // OSC address in the Resolume Arena composition
+#define RESOLUME_HIGH_SCORE_ADDRESS "/composition/layers/4/clips/1/video/effects/textblock2/effect/text/params/lines" // OSC address in the Resolume Arena composition
+#define RESOLUME_NEW_HIGH_SCORE_ADDRESS "/composition/layers/3/clips/2/connect"
+#define RESOLUME_MAX_ADDRESS_LEN 255
 
 class Timer
 {
-    unsigned long m_start_time;
-    unsigned long m_offset_time;
+    uint32_t m_start_time;
+    uint32_t m_offset_time;
 
 public:
     // Constructors
     Timer();
 
     // Accessors
-    const unsigned long& get_start_time() const { return m_start_time; }
-    const unsigned long& get_offset_time() const { return m_offset_time; }
+    const uint32_t& get_start_time() const { return m_start_time; }
+    const uint32_t& get_offset_time() const { return m_offset_time; }
 
     // Methods
-    int reset_timer();
-    unsigned long get_elapsed_time(bool seconds=true) const;
+    uint32_t reset();
+    uint32_t get_elapsed_time(bool seconds=true) const;
 };
 
 
@@ -56,12 +87,12 @@ class BasketSensor
         uint16_t cooldown_time;
 
         // Constructor
-        HoopCooldown() : on_cooldown(false), cooldown_time(0) { mil_timer.reset_timer(); }
+        HoopCooldown() : on_cooldown(false), cooldown_time(0) { mil_timer.reset(); }
 
         // Methods
         void set_cooldown(int in_cooldown_amount)
         {
-            mil_timer.reset_timer();
+            mil_timer.reset();
             cooldown_time = in_cooldown_amount;
             on_cooldown = true;
         }
@@ -77,7 +108,7 @@ class BasketSensor
 
         void reset()
         {
-            mil_timer.reset_timer();
+            mil_timer.reset();
             on_cooldown = false;
             cooldown_time = 0;
         }
@@ -99,7 +130,7 @@ public:
 
 struct Layout
 {
-    enum LayoutId 
+    enum LayoutId : uint8_t
     {
         LAYOUT_0,
         LAYOUT_1,
@@ -138,7 +169,7 @@ class MVPHoopsLayouts
     bool m_curr_layout[NUM_MVP_HOOPS]; // Copy of the current layout boolean array (Layout::POSSIBLE_LAYOUTS)
 
 public:
-    enum MVPState
+    enum MVPState : uint8_t
     {
         MVP_GAME_OVER,
         MVP_RUNNING,
@@ -206,7 +237,7 @@ public:
     void send(Print& in_p);
     void clear();
 
-    // Serial Monitor debug
+    // Prints to DEBUG_OUTPUT
     void print() const;
     void info() const;
 

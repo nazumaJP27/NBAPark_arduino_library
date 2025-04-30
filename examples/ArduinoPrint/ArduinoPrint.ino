@@ -3,7 +3,7 @@
  * Description: Example program to test functionality of the OSCPark::send method that uses Arduino Print class to send an OSC message to Resolume Arena through UDP packets
  * Author: José Paulo Seibt Neto
  * Created: Mar - 2025
- * Last Modified: Mar - 2025
+ * Last Modified: Apr - 2025
 */
 
 #include <NBAPark.h>
@@ -28,7 +28,7 @@ int now;
 void setup()
 {
     Serial.begin(115200);
-    now = timer.reset_timer();
+    now = timer.reset();
 
     Ethernet.begin(board_mac, board_ip);
     udp.begin(resolume_out_port);
@@ -56,6 +56,6 @@ void loop()
         {
             now = timer.get_elapsed_time();
         }
-        now = timer.reset_timer();
+        now = timer.reset();
     }
 }

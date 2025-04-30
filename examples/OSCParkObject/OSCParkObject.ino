@@ -3,7 +3,7 @@
  * Description: Example program that will parse UDP packets and instantiate OSCPark obj
  * Author: José Paulo Seibt Neto
  * Created: Mar - 2025
- * Last Modified: Mar - 2025
+ * Last Modified: Apr - 2025
 */
 
 #include <NBAPark.h>
@@ -33,7 +33,7 @@ void setup()
     udp.begin(resolume_out_port);
 
     osc_msg.clear();
-    timer.reset_timer();
+    timer.reset();
 }
 
 // Prints on the Serial Monitor information about receiving OSC messages for DELAY seconds then pauses the loop for another DELAY seconds
@@ -57,7 +57,7 @@ void loop()
     if (timer.get_elapsed_time() >= DELAY)
     {
         while (timer.get_elapsed_time() < DELAY * 2) { delay(1); }
-        timer.reset_timer();
+        timer.reset();
         loop();
     }
 }

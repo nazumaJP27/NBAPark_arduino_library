@@ -3,7 +3,7 @@
  * Description: Example program to test BasketSensor, Layout, and MVPHoopsLayouts objects working to demonstrate dynamic sensor check
  * Author: José Paulo Seibt Neto
  * Created: Fev - 2025
- * Last Modified: Mar - 2025
+ * Last Modified: Apr - 2025
 */
 
 #include <NBAPark.h>
@@ -43,7 +43,7 @@ void setup()
 {
     Serial.begin(115200);
 
-    timer.reset_timer();
+    timer.reset();
     now = timer.get_elapsed_time();
 
     test_mvp.reset();
