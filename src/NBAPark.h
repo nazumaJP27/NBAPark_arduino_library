@@ -13,7 +13,7 @@
 #include <stdint.h>  // types uint8_t, uint32_t, etc (Arduino.h should already include this header by default)
 
 // Debug levels
-#define DEBUG_LEVEL 3 // 0 = None, 1 = Sketch only, 2 = Library only, 3 = Sketch and Library
+#define DEBUG_LEVEL 0 // 0 = None, 1 = Sketch only, 2 = Library only, 3 = Sketch and Library
 #define DEBUG_OUTPUT Serial
 
 // Debug macros for Sketch
@@ -43,6 +43,7 @@
 #define BALL_DETECTION_THRESHOLD 30   // Value in centimeters
 #define BALL_DETECTION_COOLDOWN 500   // Value in milliseconds
 #define BALL_DETECTION_TIMEOUT 5000   // Value in microseconds (3-5ms timeout should be enough for reads up to ~50cm)
+#define BALL_DETECTION_READ_DELAY 7   // Value in milliseconds (almost always should be greater than the timeout, and can vary depending on the environment)
 #define NUM_MVP_HOOPS 3
 #define DEFAULT_HIGH_SCORE 10U        // Default high score value (used in the GameMVP example program)
 #define HIGH_SCORE_RESET_TIME 86400U  // Value in seconds
@@ -90,7 +91,7 @@ class BasketSensor
         HoopCooldown() : on_cooldown(false), cooldown_time(0) { mil_timer.reset(); }
 
         // Methods
-        void set_cooldown(int in_cooldown_amount)
+        void set_cooldown(uint32_t in_cooldown_amount)
         {
             mil_timer.reset();
             cooldown_time = in_cooldown_amount;
@@ -128,47 +129,149 @@ public:
 };
 
 
-struct Layout
+// Bitmap for all possible patterns for three hoops
+// Each pattern element enum NEED to align with it's binary representation, e.g. LAYOUT_9 = 0b1001u
+enum BitmapPattern : uint8_t
 {
-    enum LayoutId : uint8_t
-    {
-        LAYOUT_0,
-        LAYOUT_1,
-        LAYOUT_2,
-        LAYOUT_3,
-        LAYOUT_4,
-        LAYOUT_5,
-        LAYOUT_6,
-        LAYOUT_7,
-        LAYOUT_STOP, // sentinel value
-        NUM_LAYOUTS
-    };
-
-    // All the possible layouts for three hoops attached to the wall
-    static const bool POSSIBLE_LAYOUTS[NUM_LAYOUTS][NUM_MVP_HOOPS];
-
-    // Member variables
-    int time;
-    LayoutId id;
-
-    // Constructors
-    Layout();
-    Layout(int in_time, LayoutId in_layout_id);
-
-    // Accessor
-    const bool* get_bool_layout() const { return POSSIBLE_LAYOUTS[id]; }
+    LAYOUT_0 = 0b0000u,
+    LAYOUT_1 = 0b0001u,
+    LAYOUT_2 = 0b0010u,
+    LAYOUT_3 = 0b0011u,
+    LAYOUT_4 = 0b0100u,
+    LAYOUT_5 = 0b0101u,
+    LAYOUT_6 = 0b0110u,
+    LAYOUT_7 = 0b0111u,
+    LAYOUT_STOP, // Sentinel value
+    NUM_PATTERNS
 };
 
-// Class needs to point to an array of Layout objects with the last layout being a LAYOUT_STOP
-class MVPHoopsLayouts
+
+// ThreeBasketSensors (begin)
+// Used to check and interpret readings from three ultrasonic sensors (HC-SR04) simultaneously
+class ThreeBasketSensors
 {
-    // Member variables
-    const Layout* m_layouts_arr;
-    uint8_t m_curr;                    // Index for the current Layout obj  
-    uint8_t m_next;                    // Index for the next Layout obj
-    bool m_curr_layout[NUM_MVP_HOOPS]; // Copy of the current layout boolean array (Layout::POSSIBLE_LAYOUTS)
+    uint8_t m_trig_pins[3];
+    uint8_t m_echo_pins[3];
+    bool m_ready; // Flag that indicates if the pin arrays where initialized correctly
+
+    // Separate hoops state that handle the cooldown for checking sensor after a ball is detected (all in-lined for simplicity)
+    struct ThreeHoopsCooldown
+    {
+        Timer mil_timer[3];
+        BitmapPattern on_cooldown_pattern;
+
+        // Constructor
+        ThreeHoopsCooldown() : on_cooldown_pattern(BitmapPattern::LAYOUT_0)
+        {
+            for (uint8_t i = 0; i < 3; ++i) mil_timer[i].reset();
+        }
+
+        // Methods
+        void set_cooldown(uint8_t in_hoop_index)
+        {
+            if (in_hoop_index > 2)
+            {
+                debugLib("[ThreeHoopsCooldown::set_cooldown] Invalid arg for in_hoop_index\n");
+            }
+            else
+            {
+                mil_timer[in_hoop_index].reset();
+                // Set cooldown pattern
+                switch (in_hoop_index)
+                {   // Activate the bit that corresponds to the hoop_index
+                    case 0:
+                        on_cooldown_pattern |= 0b0001u;
+                        break;
+                    case 1:
+                        on_cooldown_pattern |= 0b0010u;
+                        break;
+                    case 2:
+                        on_cooldown_pattern |= 0b0100u;
+                        break;
+                    default:
+                        debugLib("[ThreeHoopsCooldown::set_cooldown] Should never get here\n");
+                }
+            }
+        }
+
+        // Check each hoop cooldown sequentially and update the bitmap pattern using a bitmask
+        void update()
+        {
+            uint8_t mask = 0b0000u;
+
+            // Check the first sensor
+            if ((on_cooldown_pattern & 0b0001u) && (mil_timer[0].get_elapsed_time(false) > BALL_DETECTION_COOLDOWN))
+            {   // Deactivate cooldown on first sensor
+                debugLib("Deactivate cooldown on first sensor\n");
+                mask |= 0b0001u;
+            }
+
+            // Check the second sensor
+            if ((on_cooldown_pattern & 0b0010u) && (mil_timer[1].get_elapsed_time(false) > BALL_DETECTION_COOLDOWN))
+            {   // Deactivate cooldown on second sensor
+                debugLib("Deactivate cooldown on second sensor\n");
+                mask |= 0b0010u;
+            }
+
+            // Check the third sensor
+            if ((on_cooldown_pattern & 0b0100u) && (mil_timer[2].get_elapsed_time(false) > BALL_DETECTION_COOLDOWN))
+            {   // Deactivate cooldown on third sensor
+                debugLib("Deactivate cooldown on third sensor\n");
+                mask |= 0b0100u;
+            }
+
+            // Apply mask to the bitmap of the sensor on cooldown
+            on_cooldown_pattern &= ~mask;
+        }
+
+        void reset()
+        {
+            for (uint8_t i = 0; i < 3; ++i)
+            {
+                mil_timer[i].reset();
+            }
+            on_cooldown_pattern = BitmapPattern::LAYOUT_0;
+        }
+    } m_hoops_cooldown;
 
 public:
+    // Constructors
+    ThreeBasketSensors()
+        : m_trig_pins{0, 0, 0}, m_echo_pins{0, 0, 0}, m_ready(false) {}
+
+    ThreeBasketSensors(const uint8_t in_trig0, const uint8_t in_trig1, const uint8_t in_trig2,
+                       const uint8_t in_echo0, const uint8_t in_echo1, const uint8_t in_echo2)
+        : m_trig_pins{in_trig0, in_trig1, in_trig2},
+          m_echo_pins{in_echo0, in_echo1, in_echo2},
+          m_ready(true)
+          {}
+
+    ThreeBasketSensors(const uint8_t* in_trig_pin_arr, const uint8_t* in_echo_pin_arr);
+
+    // Methods
+    bool init(const uint8_t in_trig0, const uint8_t in_trig1, const uint8_t in_trig2, const uint8_t in_echo0, const uint8_t in_echo1, const uint8_t in_echo2);
+    bool init(const uint8_t* in_trig_pin_arr, const uint8_t* in_echo_pin_arr);
+
+    BitmapPattern check_sensors();
+    uint8_t filter_sensor_readings(BitmapPattern in_curr_pattern, BitmapPattern in_sensor_checks);
+};
+
+
+// Handle the multiple states and the dynamic layouts of the MVP Competition basketball rims
+// Needs to point to an array of Layout instances with the last Layout.active being a BitmapPattern::LAYOUT_STOP
+class MVPHoops
+{
+public:
+    struct Layout
+    {
+        uint32_t time;
+        BitmapPattern active;
+
+        // Layout constructors
+        Layout() : time(0), active(LAYOUT_0) {}
+        Layout(uint32_t in_time, BitmapPattern in_active) : time(in_time), active(in_active) {}
+    };
+
     enum MVPState : uint8_t
     {
         MVP_GAME_OVER,
@@ -176,22 +279,30 @@ public:
         MVP_HOLD
     };
 
+private:
+    // Member variables
+    const Layout* m_layouts_arr;
+    uint8_t m_curr;               // Index for the current Layout obj  
+    uint8_t m_next;               // Index for the next Layout obj
+    BitmapPattern m_curr_pattern; // Copy of the BitmapPattern member variable Layout.active
+
+public:
     // Constructors
-    MVPHoopsLayouts();
-    MVPHoopsLayouts(const Layout* in_layouts_arr, const uint8_t in_size);
+    MVPHoops();
+    MVPHoops(const Layout* in_layout_arr, const uint8_t in_size);
 
     // Methods
-    bool init(const Layout* in_layouts_arr, const uint8_t in_size);
-    MVPState update(int in_time);
+    bool init(const Layout* in_layout_arr, const uint8_t in_size);
+    MVPState update(uint32_t in_time);
     MVPState reset(); // Always return MVP_GAME_OVER
 
-    // Accessors
-    const bool* get_curr_layout() const { return m_curr_layout; }
+    // Accessors (copy)
+    BitmapPattern get_curr_pattern() const { return m_curr_pattern; }
 
 private:
     // Method to iterate over layouts and ensure correct boundary checking
     bool validate_layouts_arr(const Layout* in_layouts_arr, const uint8_t in_size);
-    void copy_layout(const Layout* in_layout);
+    void copy_pattern(const Layout* in_layout);
 };
 
 

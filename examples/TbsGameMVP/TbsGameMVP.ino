@@ -1,6 +1,6 @@
 /*
  * NBA Park Arduino Library
- * Description: Example program that reads custom OSC messages send by Resolume Arena to correctly read values from three BasketSensor objs
+ * Description: Example program that reads custom OSC messages send by Resolume Arena to correctly read values from a ThreeBasketSensors obj
                 working in conjunction with a MVPHoops instance to count basketballs that go through the rim at specific times based
                 on the clip projected in the Resolume composition, displaying the score count of the game in real time.
  * Author: José Paulo Seibt Neto
@@ -28,7 +28,9 @@ MVPHoops::MVPState mvp_state;
 const uint8_t trig_pins[] = {2, 4, 6};
 const uint8_t echo_pins[] = {3, 5, 7};
 
-const MVPHoops::Layout test_layouts[] = {
+ThreeBasketSensors tbs(trig_pins, echo_pins);
+
+const MVPHoops::MVPHoops::Layout test_layouts[] = {
     MVPHoops::Layout(5, BitmapPattern::LAYOUT_1),  // 0
     MVPHoops::Layout(12, BitmapPattern::LAYOUT_5), // 1
     MVPHoops::Layout(14, BitmapPattern::LAYOUT_4), // 2
@@ -60,12 +62,6 @@ const MVPHoops::Layout test_layouts[] = {
     MVPHoops::Layout(82, BitmapPattern::LAYOUT_7), // 28
     MVPHoops::Layout(93, BitmapPattern::LAYOUT_0), // 29
     MVPHoops::Layout(102, BitmapPattern::LAYOUT_STOP),
-};
-
-BasketSensor baskets[] = {
-    BasketSensor(trig_pins[0], echo_pins[0]),
-    BasketSensor(trig_pins[1], echo_pins[1]),
-    BasketSensor(trig_pins[2], echo_pins[2])
 };
 
 // Stat tracking
@@ -177,33 +173,38 @@ void game_update()
 {
     debugSkt("[game_update] Current Layout: ");
     debugSktVal(curr_mvp_pattern, BIN);
-    for (uint8_t i = 0; i < NUM_MVP_HOOPS; ++i)
-        if (((curr_mvp_pattern >> i) & 1) && baskets[i].ball_detected())
+
+    // Add a delay before checking the sensors to prevent interferences from previous readings (ultrasonic sensors are finicky)
+    delayMicroseconds(BALL_DETECTION_READ_DELAY);
+    BitmapPattern checks = tbs.check_sensors();
+    uint8_t shots_converted = tbs.filter_sensor_readings(curr_mvp_pattern, checks);
+
+    if (shots_converted > 0)
+    {
+        score_count += shots_converted * 2; // Each shot converted grants 2 points
+        send_score_to_resolume(SCORE, score_count);
+        debugSkt("BALL DETECTED! ball count: ");
+        debugSkt(score_count);
+
+        // Check for new high score
+        if (score_count > high_score_count)
         {
-            score_count += 2; // Each shot converted grants 2 points
-            send_score_to_resolume(SCORE, score_count);
-            debugSkt("BALL DETECTED! ball count: ");
-            debugSkt(score_count);
+            high_score_count = score_count;
+            send_score_to_resolume(HIGH_SCORE, high_score_count);
 
-            // Check for new high score
-            if (score_count > high_score_count)
-            {
-                high_score_count = score_count;
-                send_score_to_resolume(HIGH_SCORE, high_score_count);
-
-                // Check if the new high score clip was already triggered
-                if (!new_high_score)
-                {   // Activate the new high score pop-up clip on Resolume Arena
-                    debugSkt(" | NEW HIGH SCORE!");
-                    snprintf(reinterpret_cast<char*>(osc_message_buffer), sizeof(osc_message_buffer), RESOLUME_NEW_HIGH_SCORE_ADDRESS);
-                    OSCPark msg(reinterpret_cast<char*>(osc_message_buffer));
-                    udp.beginPacket(pc_ip, resolume_in_port);
-                    msg.send(udp);
-                    udp.endPacket();
-                    new_high_score = true;
-                }
+            // Check if the new high score clip was already triggered
+            if (!new_high_score)
+            {   // Activate the new high score pop-up clip on Resolume Arena
+                debugSkt(" | NEW HIGH SCORE!");
+                snprintf(reinterpret_cast<char*>(osc_message_buffer), sizeof(osc_message_buffer), RESOLUME_NEW_HIGH_SCORE_ADDRESS);
+                OSCPark msg(reinterpret_cast<char*>(osc_message_buffer));
+                udp.beginPacket(pc_ip, resolume_in_port);
+                msg.send(udp);
+                udp.endPacket();
+                new_high_score = true;
             }
         }
+    }
     debugSktln();
 }
 

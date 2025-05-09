@@ -3,7 +3,7 @@
  * Description: Definitions of the classes and structs from NBAPark.h
  * Author: José Paulo Seibt Neto
  * Created: Fev - 2025
- * Last Modified: Apr - 2025
+ * Last Modified: May - 2025
 */
 
 #include "NBAPark.h"
@@ -82,63 +82,196 @@ float BasketSensor::get_ultrasonic_distance()
 // BasketSensor Class (end)
 
 
-// Layout (begin)
-// Constructors
-Layout::Layout() : time(0), id(LAYOUT_0) {}
-
-Layout::Layout(int in_time, LayoutId in_layout_id) : time(in_time), id(in_layout_id) {}
-
-const bool Layout::POSSIBLE_LAYOUTS[LayoutId::NUM_LAYOUTS][NUM_MVP_HOOPS] = {
-    {0, 0, 0}, // LAYOUT_0
-    {1, 1, 1}, // LAYOUT_1
-    {1, 0, 0}, // LAYOUT_2
-    {0, 1, 0}, // LAYOUT_3
-    {0, 0, 1}, // LAYOUT_4
-    {1, 1, 0}, // LAYOUT_5
-    {1, 0, 1}, // LAYOUT_6
-    {0, 1, 1}, // LAYOUT_7
-};
-// Layout (end)
-
-
-// MVPHoopsLayouts (begin)
-// Constructors
-MVPHoopsLayouts::MVPHoopsLayouts() : m_curr(0), m_next(1)
+// ThreeBasketSensors Class (begin)
+// Constructor
+ThreeBasketSensors::ThreeBasketSensors(const uint8_t* in_trig_pin_arr, const uint8_t* in_echo_pin_arr)
 {
-    m_layouts_arr = nullptr;
-    copy_layout(&Layout()); // Default Layout
+    m_ready = init(in_trig_pin_arr, in_echo_pin_arr);
 }
 
-MVPHoopsLayouts::MVPHoopsLayouts(const Layout* in_layouts_arr, const uint8_t in_size) : m_curr(0), m_next(1)
+// For the method just assign each argument to the corresponding index element in the pin arrays
+// Pin number validation can be added
+bool ThreeBasketSensors::init(const uint8_t in_trig0, const uint8_t in_trig1, const uint8_t in_trig2,
+                              const uint8_t in_echo0, const uint8_t in_echo1, const uint8_t in_echo2)
+{
+    m_trig_pins[0] = in_trig0;
+    m_trig_pins[1] = in_trig1;
+    m_trig_pins[2] = in_trig2;
+
+    m_echo_pins[0] = in_echo0;
+    m_echo_pins[1] = in_echo1;
+    m_echo_pins[2] = in_echo2;
+
+    for (uint8_t i = 0; i < 3; ++i)
+    {
+        pinMode(m_trig_pins[i], OUTPUT);
+        pinMode(m_echo_pins[i], INPUT);
+    }
+
+    return true;
+}
+
+// Initializes m_trig_pins and m_echo_pins arrays through an input array as argument
+// Can be dangerous if arguments are pointers to an array with less than three elements
+bool ThreeBasketSensors::init(const uint8_t* in_trig_pin_arr, const uint8_t* in_echo_pin_arr)
+{
+    // Check for null
+    if (!in_trig_pin_arr || !in_echo_pin_arr)
+    {
+        return false;
+    }
+
+    for (uint8_t i = 0; i < 3; ++i)
+    {
+        m_trig_pins[i] = in_trig_pin_arr[i];
+        m_echo_pins[i] = in_echo_pin_arr[i];
+        pinMode(m_trig_pins[i], OUTPUT);
+        pinMode(m_echo_pins[i], INPUT);
+    }
+    return true;
+}
+
+// Check all sensors (sA, sB, sC) at the same time and returns a bitmap of the reading
+// Returns a uint8_t binary value as 0000_0[sC][sB][sA]
+BitmapPattern ThreeBasketSensors::check_sensors()
+{
+    if (!m_ready) return BitmapPattern::LAYOUT_STOP;
+
+    uint32_t pulse_starts[3] = {0, 0, 0};
+    uint32_t pulse_durations[3] = {0, 0, 0};
+    uint8_t sensor_states[3] = {0, 0, 0}; // 0 = waiting for HIGH, 1 = measuring HIGH, 2 = done
+
+    // Send a pulse to the ultrasonic sensor on each trigger pin
+    digitalWrite(m_trig_pins[0], LOW);
+    digitalWrite(m_trig_pins[1], LOW);
+    digitalWrite(m_trig_pins[2], LOW);
+    //while (micros() - start_micros < 2);
+    delayMicroseconds(2);
+    digitalWrite(m_trig_pins[0], HIGH);
+    digitalWrite(m_trig_pins[1], HIGH);
+    digitalWrite(m_trig_pins[2], HIGH);
+    //while (micros() - start_micros < 12);
+    delayMicroseconds(10);
+    digitalWrite(m_trig_pins[0], LOW);
+    digitalWrite(m_trig_pins[1], LOW);
+    digitalWrite(m_trig_pins[2], LOW);
+
+    // Monitor echo pins
+    uint32_t start_micros = micros();
+    while (micros() - start_micros < BALL_DETECTION_TIMEOUT)
+    {
+        for (uint8_t i = 0; i < 3; ++i)
+        {
+            if (sensor_states[i] == 0 && digitalRead(m_echo_pins[i]) == HIGH)
+            {   // Start timing the pulse
+                pulse_starts[i] = micros();
+                sensor_states[i] = 1;
+            }
+            else if (sensor_states[i] == 1 && digitalRead(m_echo_pins[i]) == LOW)
+            {   // Pulse ended, calculate duration
+                pulse_durations[i] = micros() - pulse_starts[i];
+                sensor_states[i] = 2;
+            }
+        }
+
+        // Exit early if all sensors are done
+        if (sensor_states[0] == 2 && sensor_states[1] == 2 && sensor_states[2] == 2)
+        {
+            break;
+        }
+    }
+
+    // Convert durations to distances and then binary representation
+    BitmapPattern result = BitmapPattern::LAYOUT_0;
+    for (uint8_t i = 0; i < 3; ++i)
+    {
+        if (pulse_durations[i])
+        {
+            uint32_t distance = (pulse_durations[i] * SOUND_SPEED) / 2;
+            result |= ((distance > 1 && distance < BALL_DETECTION_THRESHOLD) ? 1 : 0) << i;
+        }
+    }
+
+    return result;
+}
+
+// Return amount of shots converted by validating which sensors where triggered and which ones where valid
+// at any given time, by using a bitwise AND on the current valid Layout of rims and the (inputed) sensor readings
+uint8_t ThreeBasketSensors::filter_sensor_readings(const BitmapPattern in_curr_pattern, const BitmapPattern in_sensor_checks)
+{
+    if (!m_ready || in_sensor_checks >= BitmapPattern::LAYOUT_STOP) return 0;
+
+    BitmapPattern valid_rims = in_curr_pattern & in_sensor_checks;
+    m_hoops_cooldown.update();
+    valid_rims &= ~m_hoops_cooldown.on_cooldown_pattern; // Flip bits corresponding to cooldown of each sensor
+
+    debugLib("[ThreeBasketSensors::filter_sensor_readings] in_curr_pattern AND in_sensor_checks = ");
+    debugLibVal(valid_rims, BIN); debugLibln();
+
+    switch (valid_rims)
+    {
+        case LAYOUT_1:
+            m_hoops_cooldown.set_cooldown(0);
+        case LAYOUT_2:
+            m_hoops_cooldown.set_cooldown(1);
+        case LAYOUT_4:
+            m_hoops_cooldown.set_cooldown(2);
+            return 1; // One shot converted
+        case LAYOUT_3:
+            m_hoops_cooldown.set_cooldown(0);
+            m_hoops_cooldown.set_cooldown(1);
+        case LAYOUT_5:
+            m_hoops_cooldown.set_cooldown(0);
+            m_hoops_cooldown.set_cooldown(2);
+        case LAYOUT_6:
+            m_hoops_cooldown.set_cooldown(1);
+            m_hoops_cooldown.set_cooldown(2);
+            return 2; // Two shots converted
+        case LAYOUT_7:
+            m_hoops_cooldown.set_cooldown(0);
+            m_hoops_cooldown.set_cooldown(1);
+            m_hoops_cooldown.set_cooldown(2);
+            return 3; // Three shots converted
+    }
+    return 0;         // None conveted
+}
+
+
+// MVPHoops (begin)
+// Constructors
+MVPHoops::MVPHoops() : m_curr(0), m_next(1)
+{
+    m_layouts_arr = nullptr;
+    m_curr_pattern = BitmapPattern::LAYOUT_0; // Default Layout
+}
+
+MVPHoops::MVPHoops(const Layout* in_layouts_arr, const uint8_t in_size) : m_curr(0), m_next(1)
 {
     init(in_layouts_arr, in_size);
 }
 
-bool MVPHoopsLayouts::init(const Layout* in_layouts_arr, const uint8_t in_size)
+bool MVPHoops::init(const Layout* in_layouts_arr, const uint8_t in_size)
 {
     if (!validate_layouts_arr(in_layouts_arr, in_size))
-    {
-        // Invalid - raise error
+    {   // Invalid - raise error
         return false;
     }
     m_layouts_arr = in_layouts_arr;
 
     // Copy the bool array from the Layout obj id
-    copy_layout(&m_layouts_arr[m_curr]);
+    copy_pattern(&m_layouts_arr[m_curr]);
     return true;
 }
 
 // Iterate over the array to validate its layouts and check its size argument
-bool MVPHoopsLayouts::validate_layouts_arr(const Layout* in_layouts_arr, const uint8_t in_size)
+bool MVPHoops::validate_layouts_arr(const Layout* in_layouts_arr, const uint8_t in_size)
 {
     if (!in_layouts_arr)
-    {
-        // Handle nullptr error
+    {   // Handle nullptr error
         return false;
     }
-    else if (in_layouts_arr[0].id == Layout::LAYOUT_STOP || in_size < 2)
-    {
-        // Empty array or without a valid layouts
+    else if (in_layouts_arr[0].active == BitmapPattern::LAYOUT_STOP || in_size < 2)
+    {   // Empty array or without valid layouts
         return false;
     }
 
@@ -146,25 +279,23 @@ bool MVPHoopsLayouts::validate_layouts_arr(const Layout* in_layouts_arr, const u
     Layout curr_layout = in_layouts_arr[0];
 
     // Iterate until the second to last element
-    for(; i < in_size - 1 && curr_layout.id != Layout::LAYOUT_STOP; curr_layout = in_layouts_arr[++i])
+    for(; i < in_size - 1 && curr_layout.active != BitmapPattern::LAYOUT_STOP; curr_layout = in_layouts_arr[++i])
     {
-        if (curr_layout.id > Layout::NUM_LAYOUTS) return false;
+        if (curr_layout.active >= BitmapPattern::NUM_PATTERNS) return false;
     }
 
     // Checks the in_size and if the last element in in_layouts_arr is the sentinel value
-    return (i == in_size - 1 && curr_layout.id == Layout::LAYOUT_STOP);
+    return (i == in_size - 1 && curr_layout.active == BitmapPattern::LAYOUT_STOP);
 }
 
-// Copy bool array from Layout::POSSIBLE_LAYOUTS into m_curr_layout
-void MVPHoopsLayouts::copy_layout(const Layout* in_layout)
+// Copy the BitmapPattern member variable Layout.active to m_curr_pattern
+void MVPHoops::copy_pattern(const Layout* in_layout)
 {
-    const bool* layout_ptr = in_layout->get_bool_layout();
-    for (uint8_t i = 0; i < NUM_MVP_HOOPS; ++i)
-        m_curr_layout[i] = layout_ptr[i];
+    m_curr_pattern = in_layout->active;
 }
 
 // Update the current valid layout by dereferencing the next available Layout obj by checking the in_time argument and returning the "game state"
-MVPHoopsLayouts::MVPState MVPHoopsLayouts::update(const int in_time)
+MVPHoops::MVPState MVPHoops::update(const uint32_t in_time)
 {
     if (!m_layouts_arr)
     {
@@ -172,13 +303,13 @@ MVPHoopsLayouts::MVPState MVPHoopsLayouts::update(const int in_time)
     }
     else if (in_time >= m_layouts_arr[m_next].time)
     {
-        if (m_layouts_arr[++m_curr].id == Layout::LAYOUT_STOP)
+        if (m_layouts_arr[++m_curr].active == BitmapPattern::LAYOUT_STOP)
         {
             // End of the transitions
             reset();
             return MVP_GAME_OVER;
         }
-        copy_layout(&m_layouts_arr[m_next++]);
+        copy_pattern(&m_layouts_arr[m_next++]);
     }
     else if (in_time < m_layouts_arr[m_curr].time)
     {
@@ -188,16 +319,16 @@ MVPHoopsLayouts::MVPState MVPHoopsLayouts::update(const int in_time)
     return MVP_RUNNING;
 }
 
-MVPHoopsLayouts::MVPState MVPHoopsLayouts::reset()
+MVPHoops::MVPState MVPHoops::reset()
 {
     m_curr = 0;
     m_next = 1;
     if (m_layouts_arr)
-        copy_layout(&m_layouts_arr[m_curr]);
+        copy_pattern(&m_layouts_arr[m_curr]);
 
     return MVP_GAME_OVER;
 }
-// MVPHoopsLayouts (end)
+// MVPHoops (end)
 
 
 // OSCPark (begin)
