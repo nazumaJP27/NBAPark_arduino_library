@@ -4,7 +4,7 @@
                 working in conjunction with a MVPHoops instance to count basketballs that go through the rim at specific times based
                 on the clip projected in the Resolume composition, displaying the score count of the game in real time.
  * Author: José Paulo Seibt Neto
- * Created: Mar - 2025
+ * Created: Apr - 2025
  * Last Modified: May - 2025
 */
 

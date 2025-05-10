@@ -1,8 +1,8 @@
 /*
  * NBA Park Arduino Library
- * Description: Example program that reads custom OSC messages send by Resolume Arena to correctly read values from three BasketSensor objs
-                working in conjunction with a MVPHoops instance to count basketballs that go through the rim at specific times based
-                on the clip projected in the Resolume composition, displaying the score count of the game in real time.
+ * Description: Example program that reads messages send by Serial (e.g. Serial Monitor) to read values from three BasketSensor objs
+                working in conjunction with a MVPHoops instance to count basketballs that go through the rim at specific times, displaying
+                the score count of the game and other information through the Arduino Serial Monitor (primarily used for debugging).
  * Author: José Paulo Seibt Neto
  * Created: Apr - 2025
  * Last Modified: May - 2025
