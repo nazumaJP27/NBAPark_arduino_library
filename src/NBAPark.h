@@ -3,7 +3,7 @@
  * Description: Declarations of classes and structs
  * Author: José Paulo Seibt Neto
  * Created: Fev - 2025
- * Last Modified: Apr - 2025
+ * Last Modified: May - 2025
 */
 
 #ifndef NBAPARK_H
@@ -13,7 +13,10 @@
 #include <stdint.h>  // types uint8_t, uint32_t, etc (Arduino.h should already include this header by default)
 
 // Debug levels
-#define DEBUG_LEVEL 0 // 0 = None, 1 = Sketch only, 2 = Library only, 3 = Sketch and Library
+#ifndef DEBUG_LEVEL
+    #define DEBUG_LEVEL 0 // 0 = None, 1 = Sketch only, 2 = Library only, 3 = Sketch and Library
+#endif
+
 #define DEBUG_OUTPUT Serial
 
 // Debug macros for Sketch
@@ -36,6 +39,22 @@
     #define debugLib(msg)
     #define debugLibVal(val, format)
     #define debugLibln()
+#endif
+
+// Debug flag for use with Adafruit_GFX and Ucglib (ILI9341 240x320 display)
+#ifndef DEBUG_DISPLAY
+    #define DEBUG_DISPLAY 0 // 0 = None, 1 = Adafruit, 2 = Ucglib
+#endif
+
+#if DEBUG_DISPLAY == 1
+    #define debugDrawCrossCenter() ada.drawFastHLine(0, ada.height() / 2, ada.width(), 0xffff); /*Draw horizontal line*/ \
+                                   ada.drawFastVLine(ada.width() / 2, 0, ada.height(), 0xffff); /*Draw vertical line*/
+#elif DEBUG_DISPLAY == 2
+    #define debugDrawCrossCenter() ucg.setColor(255, 255, 255); \
+                                   ucg.drawHLine(0, ucg.getHeight() / 2, ucg.getWidth()); /*Draw horizontal line*/ \
+                                   ucg.drawVLine(ucg.getWidth() / 2, 0, ucg.getHeight())  /*Draw vertical line*/
+#else
+    #define debugDrawCrossCenter()
 #endif
 
 // Constants
