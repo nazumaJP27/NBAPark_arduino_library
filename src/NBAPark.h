@@ -41,6 +41,14 @@
     #define debugLibln()
 #endif
 
+// Display related macros
+#ifndef DSP_H_CENTER
+    #define DSP_H_CENTER 160 // Horizontal center of the ILI9341 display
+#endif
+#ifndef DSP_V_CENTER
+    #define DSP_V_CENTER 120 // Verical center
+#endif
+
 // Debug flag for use with Adafruit_GFX and Ucglib (ILI9341 240x320 display)
 #ifndef DEBUG_DISPLAY
     #define DEBUG_DISPLAY 0 // 0 = None, 1 = Adafruit, 2 = Ucglib
@@ -53,8 +61,13 @@
     #define debugDrawCrossCenter() ucg.setColor(255, 255, 255); \
                                    ucg.drawHLine(0, ucg.getHeight() / 2, ucg.getWidth()); /*Draw horizontal line*/ \
                                    ucg.drawVLine(ucg.getWidth() / 2, 0, ucg.getHeight())  /*Draw vertical line*/
+    #define debugDrawInnerCross() ucg.drawHLine(0, ucg.getHeight() / 4, ucg.getWidth());                 /*Draw upper horizontal line*/ \
+                                  ucg.drawVLine(ucg.getWidth() / 4, 0, ucg.getHeight());                   /*Draw left vertical line*/ \
+                                  ucg.drawHLine(0, ucg.getHeight() - ucg.getHeight() / 4, ucg.getWidth()); /*Draw bottom horizontal line*/ \
+                                  ucg.drawVLine(ucg.getWidth() - ucg.getWidth() / 4, 0, ucg.getHeight())   /*Draw right vertical line*/
 #else
     #define debugDrawCrossCenter()
+    #define debugDrawInnerCross()
 #endif
 
 // Constants

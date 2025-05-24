@@ -30,7 +30,8 @@ uint32_t Timer::get_elapsed_time(bool seconds) const
     uint32_t elapsed = (now >= m_start_time) ? (now - m_start_time) : (m_offset_time + now);
 
     if (seconds)
-        return elapsed / 1000; // Converts to seconds
+        elapsed /= 1000; // Converts to seconds
+
     return elapsed;
 }
 // Timer (end)

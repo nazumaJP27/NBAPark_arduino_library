@@ -53,18 +53,20 @@ void setup()
     ucg.setColor(1, 0, 0, 0);       // Background
 
     // Write "IT"
-    strncpy(buffer, "TI", 2);
-    buffer[2] = '\0';
-    str_w = ucg.getStrWidth(buffer);
+    strncpy(buffer, "IT", 3);
+    ucg.drawString(DSP_H_CENTER - (ucg.getStrWidth(buffer) / 2), 115, 0, buffer); 
+    /*str_w = ucg.getStrWidth(buffer);
     ucg.setPrintPos((ucg.getWidth() - str_w) / 2, 115);
-    ucg.print("IT");
+    ucg.print("IT");*/
 
     // Write "NBA Park"
-    strncpy(buffer, "NBA Park", 8);
-    buffer[8] = '\0';
-    str_w = ucg.getStrWidth(buffer);
+    strncpy(buffer, "NBA Park", 9);
+    ucg.drawString(DSP_H_CENTER - (ucg.getStrWidth(buffer) / 2), 165, 0, buffer);
+    /*str_w = ucg.getStrWidth(buffer);
     ucg.setPrintPos((ucg.getWidth() - str_w) / 2, 165);
-    ucg.print("NBA Park");
+    ucg.print("NBA Park");*/
+
+    ucg.clearScreen(); // fills the screen with the color set at color index 1, which is the background color
 
     delay(500);
     debugDrawCrossCenter();
