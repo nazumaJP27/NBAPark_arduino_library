@@ -8,13 +8,11 @@
 
 #include "NBAPark.h"
 
-// Timer Class (begin)
+// Timer Class (start)
 // Constructors
-Timer::Timer() : m_start_time(millis()), m_offset_time(UINT32_MAX)
-{
-    m_offset_time = UINT32_MAX - m_start_time + 1;
-}
+Timer::Timer() : m_start_time(millis()), m_offset_time(UINT32_MAX - m_start_time + 1) {}
 
+// Methods
 uint32_t Timer::reset()
 {
     m_start_time = millis();
@@ -37,7 +35,70 @@ uint32_t Timer::get_elapsed_time(bool seconds) const
 // Timer (end)
 
 
-// BasketSensor Class (begin)
+// Clock (start)
+// Constructors
+Clock::Clock() : m_running(false), m_mode(0), m_clock_time(0) {}
+
+Clock::Clock(uint8_t in_hh, uint8_t in_mm, uint8_t in_ss)
+{
+    setup(0, in_hh, in_mm, in_ss);
+}
+
+Clock::Clock(uint8_t in_mode, uint8_t in_hh, uint8_t in_mm, uint8_t in_ss)
+{
+    setup(in_mode, in_hh, in_mm, in_ss);
+}
+
+// Methods
+// Setup the clock time value and mode
+uint32_t Clock::setup(uint8_t in_mode, uint8_t in_hh, uint8_t in_mm, uint8_t in_ss)
+{
+    m_mode = in_mode;
+    m_clock_time = (3600UL * in_hh) + (60UL * in_mm) + in_ss;
+    reset(); // Reset timer counting elapsed time
+    m_running = true;
+    return m_clock_time;
+}
+
+// Update the clock time value based on the elapsed seconds since the last update() or setup() call
+uint32_t Clock::update()
+{
+    if (!m_running || get_elapsed_time() < 1)
+    {   // Exit early if not running or not a second has passed since the last update() call
+        return m_clock_time;
+    }
+
+    /* Sync the m_clock_time with the number of seconds elapsed since the last update() call, then call the reset() Timer method.
+       This makes sure that the clock will wrap around and update correctly on each update() call,
+       incrementing for clock mode and decrementing for countdown mode. */
+    m_clock_time += (m_mode == 0) ? get_elapsed_time() : -get_elapsed_time();
+    reset();
+    debugLib("[Clock::update] clock_time: "); debugLib(m_clock_time); debugLibln();
+
+    if (m_mode == 0 && m_clock_time >= SECS_24H) 
+    {   // Clock mode: Wrap around 24h
+        m_clock_time %= SECS_24H;
+    }
+    else if (m_mode == 1 && m_clock_time <= 0)
+    {   // Countdown mode: End of countdown reached
+        debugLib("[Clock::update] Countdown end\n");
+        m_clock_time = 0;
+        m_running = false;
+    }
+
+    return m_clock_time;
+}
+
+void Clock::print() const
+{
+    char buffer[9];
+    snprintf(buffer, 9, "%02u:%02u:%02u", get_hh(), get_mm(), get_ss());
+    DEBUG_OUTPUT.println(buffer);
+}
+// Clock (end)
+
+
+// BasketSensor Class (start)
 // Constructors
 BasketSensor::BasketSensor(uint8_t in_trig_pin, uint8_t in_echo_pin) : m_trig_pin(in_trig_pin), m_echo_pin(in_echo_pin)
 {
@@ -83,7 +144,7 @@ float BasketSensor::get_ultrasonic_distance()
 // BasketSensor Class (end)
 
 
-// ThreeBasketSensors Class (begin)
+// ThreeBasketSensors Class (start)
 // Constructor
 ThreeBasketSensors::ThreeBasketSensors(const uint8_t* in_trig_pin_arr, const uint8_t* in_echo_pin_arr)
 {
@@ -238,7 +299,7 @@ uint8_t ThreeBasketSensors::filter_sensor_readings(const BitmapPattern in_curr_p
 }
 
 
-// MVPHoops (begin)
+// MVPHoops (start)
 // Constructors
 MVPHoops::MVPHoops() : m_curr(0), m_next(1)
 {
@@ -332,7 +393,7 @@ MVPHoops::MVPState MVPHoops::reset()
 // MVPHoops (end)
 
 
-// OSCPark (begin)
+// OSCPark (start)
 // Constructors
 // Default
 OSCPark::OSCPark() : m_addr{'\0'}, m_type_tags{'\0'}, m_addr_len(0), m_type_len(0), m_values_len(0) {}

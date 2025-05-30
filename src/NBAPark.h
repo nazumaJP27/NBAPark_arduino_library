@@ -14,7 +14,7 @@
 
 // Debug levels
 #ifndef DEBUG_LEVEL
-    #define DEBUG_LEVEL 0 // 0 = None, 1 = Sketch only, 2 = Library only, 3 = Sketch and Library
+    #define DEBUG_LEVEL 3 // 0 = None, 1 = Sketch only, 2 = Library only, 3 = Sketch and Library
 #endif
 
 #define DEBUG_OUTPUT Serial
@@ -85,6 +85,8 @@
 #define RESOLUME_HIGH_SCORE_ADDRESS "/composition/layers/4/clips/1/video/effects/textblock2/effect/text/params/lines" // OSC address in the Resolume Arena composition
 #define RESOLUME_NEW_HIGH_SCORE_ADDRESS "/composition/layers/3/clips/2/connect"
 #define RESOLUME_MAX_ADDRESS_LEN 255
+#define SECS_24H 86400UL
+#define SECS_1H 3600UL
 
 class Timer
 {
@@ -102,6 +104,31 @@ public:
     // Methods
     uint32_t reset();
     uint32_t get_elapsed_time(bool seconds=true) const;
+};
+
+
+class Clock : public Timer
+{
+    bool m_running;        // A setup() call is expected to change the state (mostly used for countdown mode)
+    uint8_t m_mode;        // 0 = clock, 1 = countdown
+    uint32_t m_clock_time; // Store the clock time state after the last update() or setup() call (in seconds)
+
+public:
+    // Constructors
+    Clock();
+    Clock(uint8_t in_hh, uint8_t in_mm, uint8_t in_ss);
+    Clock(uint8_t in_mode, uint8_t in_hh, uint8_t in_mm, uint8_t in_ss);
+
+    // Accessors
+    uint8_t get_hh() const { return m_clock_time / SECS_1H; }
+    uint8_t get_mm() const { return (m_clock_time % SECS_1H) / 60; }
+    uint8_t get_ss() const { return m_clock_time % 60; }
+    uint32_t get_time_secs() const { return m_clock_time; }
+
+    // Methods
+    uint32_t setup(uint8_t in_mode, uint8_t in_hh, uint8_t in_mm, uint8_t in_ss);
+    uint32_t update();
+    void print() const;
 };
 
 
