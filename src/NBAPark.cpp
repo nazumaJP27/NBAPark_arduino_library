@@ -39,31 +39,56 @@ uint32_t Timer::get_elapsed_time(bool seconds) const
 // Constructors
 Clock::Clock() : m_running(false), m_mode(0), m_clock_time(0) {}
 
-Clock::Clock(uint8_t in_hh, uint8_t in_mm, uint8_t in_ss)
+Clock::Clock(uint8_t in_mode, uint32_t in_clock_time)
+{
+    setup(in_mode, in_clock_time);
+}
+
+Clock::Clock(uint8_t in_hh, uint8_t in_mm, uint8_t in_ss) : m_running(false)
 {
     setup(0, in_hh, in_mm, in_ss);
 }
 
-Clock::Clock(uint8_t in_mode, uint8_t in_hh, uint8_t in_mm, uint8_t in_ss)
+Clock::Clock(uint8_t in_mode, uint8_t in_hh, uint8_t in_mm, uint8_t in_ss) : m_running(false)
 {
     setup(in_mode, in_hh, in_mm, in_ss);
 }
 
 // Methods
 // Setup the clock time value and mode
+uint32_t Clock::setup(uint8_t in_mode, uint32_t in_clock_time)
+{
+    m_mode = in_mode;
+    m_clock_time = in_clock_time;
+    reset(); // Reset timer counting elapsed time
+    return m_clock_time;
+}
+
 uint32_t Clock::setup(uint8_t in_mode, uint8_t in_hh, uint8_t in_mm, uint8_t in_ss)
 {
     m_mode = in_mode;
     m_clock_time = (3600UL * in_hh) + (60UL * in_mm) + in_ss;
+    return m_clock_time;
+}
+
+uint32_t Clock::run()
+{
     reset(); // Reset timer counting elapsed time
     m_running = true;
+    return m_clock_time;
+}
+
+uint32_t Clock::stop()
+{
+    m_running = false;
     return m_clock_time;
 }
 
 // Update the clock time value based on the elapsed seconds since the last update() or setup() call
 uint32_t Clock::update()
 {
-    if (!m_running || get_elapsed_time() < 1)
+    uint32_t now = get_elapsed_time();
+    if (!m_running || now < 1)
     {   // Exit early if not running or not a second has passed since the last update() call
         return m_clock_time;
     }
@@ -71,7 +96,14 @@ uint32_t Clock::update()
     /* Sync the m_clock_time with the number of seconds elapsed since the last update() call, then call the reset() Timer method.
        This makes sure that the clock will wrap around and update correctly on each update() call,
        incrementing for clock mode and decrementing for countdown mode. */
-    m_clock_time += (m_mode == 0) ? get_elapsed_time() : -get_elapsed_time();
+    if (m_mode == 1)
+    {   // Countdown mode
+        m_clock_time = (now <= m_clock_time) ? m_clock_time - now : 0;
+    }
+    else
+    {
+        m_clock_time += now;
+    }
     reset();
     debugLib("[Clock::update] clock_time: "); debugLib(m_clock_time); debugLibln();
 

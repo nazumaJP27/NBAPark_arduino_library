@@ -61,7 +61,7 @@
     #define debugDrawCrossCenter() ucg.setColor(255, 255, 255); \
                                    ucg.drawHLine(0, ucg.getHeight() / 2, ucg.getWidth()); /*Draw horizontal line*/ \
                                    ucg.drawVLine(ucg.getWidth() / 2, 0, ucg.getHeight())  /*Draw vertical line*/
-    #define debugDrawInnerCross() ucg.drawHLine(0, ucg.getHeight() / 4, ucg.getWidth());                 /*Draw upper horizontal line*/ \
+    #define debugDrawInnerCross() ucg.drawHLine(0, ucg.getHeight() / 4, ucg.getWidth());                   /*Draw upper horizontal line*/ \
                                   ucg.drawVLine(ucg.getWidth() / 4, 0, ucg.getHeight());                   /*Draw left vertical line*/ \
                                   ucg.drawHLine(0, ucg.getHeight() - ucg.getHeight() / 4, ucg.getWidth()); /*Draw bottom horizontal line*/ \
                                   ucg.drawVLine(ucg.getWidth() - ucg.getWidth() / 4, 0, ucg.getHeight())   /*Draw right vertical line*/
@@ -71,22 +71,73 @@
 #endif
 
 // Constants
-#define SOUND_SPEED 0.0343f           // Speed of sound in centimeters per microsecond
-#define BALL_DETECTION_THRESHOLD 30   // Value in centimeters
-#define BALL_DETECTION_COOLDOWN 500   // Value in milliseconds
-#define BALL_DETECTION_TIMEOUT 5000   // Value in microseconds (3-5ms timeout should be enough for reads up to ~50cm)
-#define BALL_DETECTION_READ_DELAY 7   // Value in milliseconds (almost always should be greater than the timeout, and can vary depending on the environment)
-#define NUM_MVP_HOOPS 3
-#define DEFAULT_HIGH_SCORE 10U        // Default high score value (used in the GameMVP example program)
-#define HIGH_SCORE_RESET_TIME 86400U  // Value in seconds
+#define SOUND_SPEED 0.0343f            // Speed of sound in centimeters per microsecond
+#define BALL_DETECTION_THRESHOLD 30U   // Value in centimeters
+#define BALL_DETECTION_COOLDOWN 500U   // Value in milliseconds
+#define BALL_DETECTION_TIMEOUT 5000U   // Value in microseconds (3-5ms timeout should be enough for reads up to ~50cm)
+#define BALL_DETECTION_READ_DELAY 7U   // Value in milliseconds (almost always should be greater than the timeout, and can vary depending on the environment)
+#define NUM_MVP_HOOPS 3U
+#define DEFAULT_HIGH_SCORE 10U         // Default high score value (used in the GameMVP example program)
+#define HIGH_SCORE_RESET_TIME 86400U   // Value in seconds
 #define RESOLUME_MVPGAME_ADDRESS "/game" // OSC address of message send by Resolume Arena when the MVP GAME clip is running (transport position)
 #define RESOLUME_MVPWAIT_ADDRESS "/wait" // OSC address of message send by Resolume Arena when the MVP WAIT clip is running (transport position)
 #define RESOLUME_SCORE_ADDRESS "/composition/layers/2/clips/2/video/effects/textblock2/effect/text/params/lines"      // OSC address in the Resolume Arena composition
 #define RESOLUME_HIGH_SCORE_ADDRESS "/composition/layers/4/clips/1/video/effects/textblock2/effect/text/params/lines" // OSC address in the Resolume Arena composition
 #define RESOLUME_NEW_HIGH_SCORE_ADDRESS "/composition/layers/3/clips/2/connect"
-#define RESOLUME_MAX_ADDRESS_LEN 255
+#define RESOLUME_MAX_ADDRESS_LEN 255U
+#define R_BATTLE_MATCH_DUR 7U // Value in seconds
+#define R_BATTLE_OVERTIME 45U // Value in seconds
+#define R_BATTLE_RESET_TIMEOUT 3000U       // Value in milliseconds
+#define R_BATTLE_HARD_RESET_TIMEOUT 8000U  // Value in milliseconds
+#define R_BATTLE_SCORER_TIMEOUT 2500U      // Value in milliseconds
+#define BUTTON_RELEASE_WINDOW 2000U        // Value in milliseconds
 #define SECS_24H 86400UL
 #define SECS_1H 3600UL
+
+// Helper struct for buttons
+struct Button
+{
+    uint8_t pin;
+    uint8_t state;
+    uint16_t release_time;      // Stores the duration in milliseconds of the last button press
+    uint32_t press_millis_start;
+    /* The curr_press_dur is usefull for debugging, commented to save up to ~120 bytes.
+       Can be uncommented in the constructor, update(), and reset(). */
+    //uint32_t curr_press_dur; // Stores current button press duration
+
+    Button(uint8_t in_pin) : pin(in_pin), state(0), press_millis_start(0), release_time(UINT16_MAX) //, curr_press_dur(0)
+    {
+        pinMode(pin, INPUT);
+    }
+
+    // Return the release time of the press, zero otherwise
+    uint32_t update()
+    {
+        if (!state)
+        {   // Check for first press
+            state = digitalRead(pin);
+            if (state) { press_millis_start = millis(); }
+        }
+        else
+        {   // Button was pressed in the last update() call
+            // Update held state 
+            state = digitalRead(pin);
+            // If button released, calculate release time, else release time gets zero
+            release_time = (!state) ? millis() - press_millis_start : 0;
+        }
+
+        //curr_press_dur = (state) ? millis() - press_millis_start : 0;
+        return release_time;
+    }
+
+    void reset()
+    {
+        state = 0;
+        release_time = UINT16_MAX;
+        //curr_press_dur = 0;
+    }
+};
+
 
 class Timer
 {
@@ -116,18 +167,23 @@ class Clock : public Timer
 public:
     // Constructors
     Clock();
+    Clock(uint8_t in_mode, uint32_t in_clock_time);
     Clock(uint8_t in_hh, uint8_t in_mm, uint8_t in_ss);
     Clock(uint8_t in_mode, uint8_t in_hh, uint8_t in_mm, uint8_t in_ss);
 
     // Accessors
+    bool is_running() const { return m_running; }
     uint8_t get_hh() const { return m_clock_time / SECS_1H; }
     uint8_t get_mm() const { return (m_clock_time % SECS_1H) / 60; }
     uint8_t get_ss() const { return m_clock_time % 60; }
     uint32_t get_time_secs() const { return m_clock_time; }
 
     // Methods
+    uint32_t setup(uint8_t in_mode, uint32_t in_clock_time);
     uint32_t setup(uint8_t in_mode, uint8_t in_hh, uint8_t in_mm, uint8_t in_ss);
-    uint32_t update();
+    uint32_t run();    // Clock running (time passing)
+    uint32_t stop();   // Clock stoped (preserve/stop clock time)
+    uint32_t update(); // Update clock time (if running)
     void print() const;
 };
 
