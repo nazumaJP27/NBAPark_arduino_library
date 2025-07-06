@@ -3,7 +3,7 @@
  * Description: Definitions of the classes and structs from NBAPark.h
  * Author: José Paulo Seibt Neto
  * Created: Fev - 2025
- * Last Modified: May - 2025
+ * Last Modified: Jul - 2025
 */
 
 #include "NBAPark.h"
@@ -39,7 +39,7 @@ uint32_t Timer::get_elapsed_time(bool seconds) const
 // Constructors
 Clock::Clock() : m_running(false), m_mode(0), m_clock_time(0) {}
 
-Clock::Clock(uint8_t in_mode, uint32_t in_clock_time)
+Clock::Clock(uint8_t in_mode, uint32_t in_clock_time) : m_running(false)
 {
     setup(in_mode, in_clock_time);
 }

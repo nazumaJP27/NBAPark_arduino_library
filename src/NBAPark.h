@@ -3,7 +3,7 @@
  * Description: Declarations of classes and structs
  * Author: José Paulo Seibt Neto
  * Created: Fev - 2025
- * Last Modified: May - 2025
+ * Last Modified: Jul - 2025
 */
 
 #ifndef NBAPARK_H
@@ -85,11 +85,12 @@
 #define RESOLUME_HIGH_SCORE_ADDRESS "/composition/layers/4/clips/1/video/effects/textblock2/effect/text/params/lines" // OSC address in the Resolume Arena composition
 #define RESOLUME_NEW_HIGH_SCORE_ADDRESS "/composition/layers/3/clips/2/connect"
 #define RESOLUME_MAX_ADDRESS_LEN 255U
-#define R_BATTLE_MATCH_DUR 7U // Value in seconds
-#define R_BATTLE_OVERTIME 45U // Value in seconds
-#define R_BATTLE_RESET_TIMEOUT 3000U       // Value in milliseconds
-#define R_BATTLE_HARD_RESET_TIMEOUT 8000U  // Value in milliseconds
-#define R_BATTLE_SCORER_TIMEOUT 2500U      // Value in milliseconds
+#define R_BATTLE_DEFAULT_MATCH_DUR 120U // Value in seconds
+#define R_BATTLE_OVERTIME 45U           // Value in seconds
+#define R_BATTLE_RESET_TRIGGER 2000U       // Value in milliseconds (button release time)
+#define R_BATTLE_HARD_RESET_TRIGGER 7000U  // Value in milliseconds (button release time)
+#define R_BATTLE_BUZZER_FEEDBACK_DUR 150U  // Duration of buzzer sound in milliseconds
+#define R_BATTLE_SCORER_TIMEOUT 3000U      // Duration of highlight for scorer in milliseconds
 #define BUTTON_RELEASE_WINDOW 2000U        // Value in milliseconds
 #define SECS_24H 86400UL
 #define SECS_1H 3600UL
@@ -103,9 +104,9 @@ struct Button
     uint32_t press_millis_start;
     /* The curr_press_dur is usefull for debugging, commented to save up to ~120 bytes.
        Can be uncommented in the constructor, update(), and reset(). */
-    //uint32_t curr_press_dur; // Stores current button press duration
+    uint32_t curr_press_dur; // Stores current button press duration
 
-    Button(uint8_t in_pin) : pin(in_pin), state(0), press_millis_start(0), release_time(UINT16_MAX) //, curr_press_dur(0)
+    Button(uint8_t in_pin) : pin(in_pin), state(0), release_time(UINT16_MAX), press_millis_start(0) //, curr_press_dur(0)
     {
         pinMode(pin, INPUT);
     }
@@ -126,7 +127,7 @@ struct Button
             release_time = (!state) ? millis() - press_millis_start : 0;
         }
 
-        //curr_press_dur = (state) ? millis() - press_millis_start : 0;
+        curr_press_dur = (state) ? millis() - press_millis_start : 0;
         return release_time;
     }
 
@@ -134,7 +135,7 @@ struct Button
     {
         state = 0;
         release_time = UINT16_MAX;
-        //curr_press_dur = 0;
+        curr_press_dur = 0;
     }
 };
 
