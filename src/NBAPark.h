@@ -79,12 +79,13 @@
 #define NUM_MVP_HOOPS 3U
 #define DEFAULT_HIGH_SCORE 10U         // Default high score value (used in the GameMVP example program)
 #define HIGH_SCORE_RESET_TIME 86400U   // Value in seconds
-#define RESOLUME_MVPGAME_ADDRESS "/game" // OSC address of message send by Resolume Arena when the MVP GAME clip is running (transport position)
-#define RESOLUME_MVPWAIT_ADDRESS "/wait" // OSC address of message send by Resolume Arena when the MVP WAIT clip is running (transport position)
+#define RESOLUME_MVPGAME_ADDRESS "/mvp/game" // OSC address of message send by Resolume Arena when the MVP GAME clip is running (transport position)
+#define RESOLUME_MVPWAIT_ADDRESS "/mvp/wait" // OSC address of message send by Resolume Arena when the MVP WAIT clip is running (transport position)
+#define MVP_HARD_RESET_OSC "/mvp/rst"       // OSC address of message send by Bitfocus Companion software to trigger a hard reset
 #define RESOLUME_SCORE_ADDRESS "/composition/layers/2/clips/2/video/effects/textblock2/effect/text/params/lines"      // OSC address in the Resolume Arena composition
 #define RESOLUME_HIGH_SCORE_ADDRESS "/composition/layers/4/clips/1/video/effects/textblock2/effect/text/params/lines" // OSC address in the Resolume Arena composition
 #define RESOLUME_NEW_HIGH_SCORE_ADDRESS "/composition/layers/3/clips/2/connect"
-#define RESOLUME_MAX_ADDRESS_LEN 255U
+#define OSC_MAX_ADDRESS_LEN 255U
 #define R_BATTLE_DEFAULT_MATCH_DUR 120U // Value in seconds
 #define R_BATTLE_OVERTIME 45U           // Value in seconds
 #define R_BATTLE_RESET_TRIGGER 2000U       // Value in milliseconds (button release time)

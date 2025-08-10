@@ -5,7 +5,7 @@
                 on the clip projected in the Resolume composition, displaying the score count of the game in real time.
  * Author: José Paulo Seibt Neto
  * Created: Apr - 2025
- * Last Modified: May - 2025
+ * Last Modified: Aug - 2025
 */
 
 #include <NBAPark.h>
@@ -13,7 +13,7 @@
 #include <EthernetUDP.h>
 #include <string.h>       // strncmp
 
-#define RSTPIN 12 // Pin number used to trigger the board RESET pin
+#define RSTPIN A0 // Pin number used to trigger the board RESET pin
 
 // Time
 Timer high_score_timer;  // Instance used to reset the high score of the game or reset the Arduino (sending LOW to RESET pin) based on elapsed time
@@ -30,7 +30,7 @@ const uint8_t echo_pins[] = {3, 5, 7};
 
 ThreeBasketSensors tbs(trig_pins, echo_pins);
 
-const MVPHoops::MVPHoops::Layout test_layouts[] = {
+const MVPHoops::Layout test_layouts[] = {
     MVPHoops::Layout(5, BitmapPattern::LAYOUT_1),  // 0
     MVPHoops::Layout(12, BitmapPattern::LAYOUT_5), // 1
     MVPHoops::Layout(14, BitmapPattern::LAYOUT_4), // 2
@@ -119,7 +119,7 @@ void loop()
         udp.read(osc_message_buffer, sizeof(osc_message_buffer));
         OSCPark msg(osc_message_buffer);
 
-        if (strncmp(msg.get_addr_cmp(), RESOLUME_MVPGAME_ADDRESS, RESOLUME_MAX_ADDRESS_LEN) == 0)
+        if (strncmp(msg.get_addr_cmp(), RESOLUME_MVPGAME_ADDRESS, OSC_MAX_ADDRESS_LEN) == 0)
         {
             if (mvp_state == MVPHoops::MVPState::MVP_GAME_OVER)
             {   
@@ -128,10 +128,16 @@ void loop()
                 send_score_to_resolume(HIGH_SCORE, high_score_count);
             }
         }
-        else if (strncmp(msg.get_addr_cmp(), RESOLUME_MVPWAIT_ADDRESS, RESOLUME_MAX_ADDRESS_LEN) == 0)
+        else if (strncmp(msg.get_addr_cmp(), RESOLUME_MVPWAIT_ADDRESS, OSC_MAX_ADDRESS_LEN) == 0)
         {
             debugSkt("GOT RESOLUME_MVPWAIT_ADDRESS\n");
             mvp_state = MVPHoops::MVPState::MVP_GAME_OVER;
+        }
+        else if (strncmp(msg.get_addr_cmp(), MVP_HARD_RESET_OSC, OSC_MAX_ADDRESS_LEN) == 0)
+        {   // Hard reset triggered, reseting board (message can be send by Bitfocus Companion)
+            debugSkt("GOT MVP_HARD_RESET_OSC\n"); delay(500);
+            pinMode(RSTPIN, OUTPUT);
+            digitalWrite(RSTPIN, LOW);
         }
     }
 
@@ -219,11 +225,11 @@ bool send_score_to_resolume(ScoreType in_type, uint16_t in_score)
     switch (in_type)
     {
         case SCORE:
-            debugSkt("Sending score...\n");
+            debugSkt("Sending score: "); debugSkt(in_score); debugSkt(" points\n");
             snprintf(reinterpret_cast<char*>(osc_message_buffer), sizeof(osc_message_buffer), RESOLUME_SCORE_ADDRESS);
             break;
         case HIGH_SCORE:
-            debugSkt("Sending high score...\n");
+            debugSkt("Sending high score: "); debugSkt(in_score); debugSkt(" points\n");
             snprintf(reinterpret_cast<char*>(osc_message_buffer), sizeof(osc_message_buffer), RESOLUME_HIGH_SCORE_ADDRESS);
             break;
         default:
