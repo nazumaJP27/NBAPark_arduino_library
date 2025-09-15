@@ -5,33 +5,33 @@
                 on the clip projected in the Resolume composition, displaying the score count of the game in real time.
  * Author: José Paulo Seibt Neto
  * Created: Mar - 2025
- * Last Modified: Aug - 2025
+ * Last Modified: Sep - 2025
 */
 
+#include <Arduino.h>
 #include <NBAPark.h>
 #include <Ethernet.h>
 #include <EthernetUDP.h>
 #include <string.h>       // strncmp
 
-#define RSTPIN A0 // Pin number used to trigger the board RESET pin
+#define RSTPIN A5 // Pin number used to trigger the board RESET pin
 
 // Time
 Timer high_score_timer;  // Instance used to reset the high score of the game or reset the Arduino (sending LOW to RESET pin) based on elapsed time
 Timer game_timer;        // Instance used to setup game logic such as the valid sensors to check at any given time
-uint32_t now; 
+uint32_t now;
 
 // MVP hoops and sensors
 MVPHoops mvp_hoops;
 BitmapPattern curr_mvp_pattern;
 MVPHoops::MVPState mvp_state;
 
-const uint8_t trig_pins[] = {2, 4, 6};
-const uint8_t echo_pins[] = {3, 5, 7};
+const uint8_t ir_out_pins[] = {2, 4, 6};
 
-BasketSensor baskets[] = {
-    BasketSensor(trig_pins[0], echo_pins[0]),
-    BasketSensor(trig_pins[1], echo_pins[1]),
-    BasketSensor(trig_pins[2], echo_pins[2])
+IRBasketSensor baskets[] = {
+    IRBasketSensor(ir_out_pins[0]),
+    IRBasketSensor(ir_out_pins[1]),
+    IRBasketSensor(ir_out_pins[2])
 };
 
 const MVPHoops::Layout test_layouts[] = {
@@ -67,6 +67,7 @@ const MVPHoops::Layout test_layouts[] = {
     MVPHoops::Layout(93, BitmapPattern::LAYOUT_0), // 29
     MVPHoops::Layout(102, BitmapPattern::LAYOUT_STOP),
 };
+
 
 // Stat tracking
 bool new_high_score;
@@ -126,7 +127,7 @@ void loop()
         if (strncmp(msg.get_addr_cmp(), RESOLUME_MVPGAME_ADDRESS, OSC_MAX_ADDRESS_LEN) == 0)
         {
             if (mvp_state == MVPHoops::MVPState::MVP_GAME_OVER)
-            {   
+            {
                 reset_game_state();
                 send_score_to_resolume(SCORE, 0);
                 send_score_to_resolume(HIGH_SCORE, high_score_count);
@@ -183,7 +184,9 @@ void game_update()
 {
     debugSkt("[game_update] Current Layout: ");
     debugSktVal(curr_mvp_pattern, BIN);
+
     for (uint8_t i = 0; i < NUM_MVP_HOOPS; ++i)
+    {
         if (((curr_mvp_pattern >> i) & 1) && baskets[i].ball_detected())
         {
             score_count += 2; // Each shot converted grants 2 points
@@ -210,6 +213,7 @@ void game_update()
                 }
             }
         }
+    }
     debugSktln();
 }
 

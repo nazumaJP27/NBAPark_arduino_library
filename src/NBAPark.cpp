@@ -130,6 +130,25 @@ void Clock::print() const
 // Clock (end)
 
 
+// IRBasketSensor Class (start)
+IRBasketSensor::IRBasketSensor(uint8_t in_out_pin) : m_out_pin(in_out_pin)
+{
+    pinMode(m_out_pin, INPUT);
+}
+
+bool IRBasketSensor::ball_detected()
+{
+    m_hoop_cooldown.update();
+    if (!m_hoop_cooldown.on_cooldown && !digitalRead(m_out_pin))
+    {   // Ball detected
+        m_hoop_cooldown.set_cooldown(BALL_DETECTION_COOLDOWN);
+        return true;
+    }
+    return false;
+}
+// IRBasketSensor Class (end)
+
+
 // BasketSensor Class (start)
 // Constructors
 BasketSensor::BasketSensor(uint8_t in_trig_pin, uint8_t in_echo_pin) : m_trig_pin(in_trig_pin), m_echo_pin(in_echo_pin)

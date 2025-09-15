@@ -190,6 +190,55 @@ public:
 };
 
 
+// Need a IR sensor
+class IRBasketSensor
+{
+    uint8_t m_out_pin;
+
+    // Separate hoop state that handle the cooldown for checking sensor after a ball is detected (all in-lined for simplicity)
+    struct HoopCooldown
+    {
+        Timer mil_timer;
+        bool on_cooldown;
+        uint16_t cooldown_time;
+
+        // Constructor
+        HoopCooldown() : on_cooldown(false), cooldown_time(0) { mil_timer.reset(); }
+
+        // Methods
+        void set_cooldown(uint32_t in_cooldown_amount)
+        {
+            mil_timer.reset();
+            cooldown_time = in_cooldown_amount;
+            on_cooldown = true;
+        }
+
+        void update()
+        {
+            if (on_cooldown && mil_timer.get_elapsed_time(false) > cooldown_time)
+            {
+                on_cooldown = false;
+                cooldown_time = 0;
+            }
+        }
+
+        void reset()
+        {
+            mil_timer.reset();
+            on_cooldown = false;
+            cooldown_time = 0;
+        }
+    } m_hoop_cooldown;
+
+public:
+    // Constructor
+    IRBasketSensor(uint8_t in_out_pin); 
+
+    // Method
+    bool ball_detected();
+};
+
+
 // Need a HC-SR04 sensor
 class BasketSensor
 {
